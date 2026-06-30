@@ -8,6 +8,7 @@ const currency = new Intl.NumberFormat("vi-VN", {
 
 const state = loadState();
 let reportRange = "day";
+let editingSaleId = "";
 
 const el = {
   todayRevenue: document.querySelector("#todayRevenue"),
@@ -20,6 +21,7 @@ const el = {
   saleQty: document.querySelector("#saleQty"),
   salePayment: document.querySelector("#salePayment"),
   saleSubmit: document.querySelector("#saleSubmit"),
+  cancelSaleEdit: document.querySelector("#cancelSaleEdit"),
   salePreview: document.querySelector("#salePreview"),
   productForm: document.querySelector("#productForm"),
   productId: document.querySelector("#productId"),
@@ -42,10 +44,7 @@ const el = {
 
 document.querySelectorAll(".tab-button").forEach((button) => {
   button.addEventListener("click", () => {
-    document.querySelectorAll(".tab-button").forEach((item) => item.classList.remove("active"));
-    document.querySelectorAll(".tab-panel").forEach((item) => item.classList.remove("active"));
-    button.classList.add("active");
-    document.querySelector(`#${button.dataset.tab}`).classList.add("active");
+    switchTab(button.dataset.tab);
   });
 });
 
@@ -88,11 +87,21 @@ el.resetProductForm.addEventListener("click", resetProductForm);
 
 el.saleSearch.addEventListener("input", () => {
   el.saleProductId.value = "";
+  el.saleSearchResults.classList.remove("hidden");
   renderSaleSearchResults();
   updateSalePreview();
 });
-el.saleSearch.addEventListener("focus", renderSaleSearchResults);
+el.saleSearch.addEventListener("focus", () => {
+  if (!el.saleProductId.value) {
+    el.saleSearchResults.classList.remove("hidden");
+    renderSaleSearchResults();
+  }
+});
+el.saleSearch.addEventListener("blur", () => {
+  window.setTimeout(() => hideSaleSearchResults(), 120);
+});
 el.saleQty.addEventListener("input", updateSalePreview);
+el.cancelSaleEdit.addEventListener("click", resetSaleForm);
 
 el.saleForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -100,14 +109,37 @@ el.saleForm.addEventListener("submit", (event) => {
   const product = state.products.find((item) => item.id === el.saleProductId.value);
   const qty = Number(el.saleQty.value);
   const paymentMethod = el.salePayment.value;
+  const editingSale = state.sales.find((sale) => sale.id === editingSaleId);
 
   if (!product) {
     showSaleMessage("Bạn cần thêm sản phẩm trước khi bán.");
     return;
   }
 
-  if (qty < 1 || qty > product.stock) {
+  const availableStock = product.stock + (editingSale?.productId === product.id ? editingSale.qty : 0);
+  if (qty < 1 || qty > availableStock) {
     showSaleMessage("Số lượng bán không hợp lệ hoặc vượt quá tồn kho.");
+    return;
+  }
+
+  if (editingSale) {
+    const oldProduct = state.products.find((item) => item.id === editingSale.productId);
+    if (oldProduct) {
+      oldProduct.stock += editingSale.qty;
+    }
+
+    product.stock -= qty;
+    editingSale.productId = product.id;
+    editingSale.productName = product.name;
+    editingSale.qty = qty;
+    editingSale.unitPrice = product.price;
+    editingSale.total = product.price * qty;
+    editingSale.paymentMethod = paymentMethod;
+
+    saveState();
+    resetSaleForm();
+    render();
+    showSaleMessage(`Đã cập nhật đơn: ${product.name} x ${qty} · ${paymentMethodLabel(paymentMethod)}.`);
     return;
   }
 
@@ -124,9 +156,7 @@ el.saleForm.addEventListener("submit", (event) => {
   });
 
   saveState();
-  el.saleQty.value = 1;
-  el.saleProductId.value = "";
-  el.saleSearch.value = "";
+  resetSaleForm();
   render();
   showSaleMessage(`Đã lưu đơn: ${product.name} x ${qty} · ${paymentMethodLabel(paymentMethod)}.`);
 });
@@ -160,6 +190,27 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+function switchTab(tabName) {
+  document.querySelectorAll(".tab-button").forEach((item) => {
+    item.classList.toggle("active", item.dataset.tab === tabName);
+  });
+  document.querySelectorAll(".tab-panel").forEach((item) => {
+    item.classList.toggle("active", item.id === tabName);
+  });
+}
+
+function resetSaleForm() {
+  editingSaleId = "";
+  el.saleQty.value = 1;
+  el.saleProductId.value = "";
+  el.saleSearch.value = "";
+  el.salePayment.value = "cash";
+  hideSaleSearchResults();
+  el.saleSubmit.textContent = "Lưu đơn bán";
+  el.cancelSaleEdit.classList.add("hidden");
+  updateSalePreview();
+}
+
 function resetProductForm() {
   el.productId.value = "";
   el.productName.value = "";
@@ -185,20 +236,27 @@ function renderSummary() {
 }
 
 function renderSaleOptions() {
-  const availableProducts = state.products.filter((item) => item.stock > 0);
-  if (el.saleSearch.value || document.activeElement === el.saleSearch) {
+  const editingSale = state.sales.find((sale) => sale.id === editingSaleId);
+  const availableProducts = state.products.filter((item) => item.stock > 0 || editingSale?.productId === item.id);
+  if (!el.saleProductId.value && (el.saleSearch.value || document.activeElement === el.saleSearch)) {
     renderSaleSearchResults();
   } else {
-    el.saleSearchResults.innerHTML = "";
+    hideSaleSearchResults();
   }
   el.saleSubmit.disabled = availableProducts.length === 0;
   updateSalePreview();
 }
 
 function renderSaleSearchResults() {
+  if (el.saleProductId.value) {
+    hideSaleSearchResults();
+    return;
+  }
+
   const keyword = normalizeText(el.saleSearch.value);
+  const editingSale = state.sales.find((sale) => sale.id === editingSaleId);
   const matches = state.products
-    .filter((item) => item.stock > 0)
+    .filter((item) => item.stock > 0 || editingSale?.productId === item.id)
     .filter((item) => !keyword || normalizeText(item.name).includes(keyword))
     .slice(0, 8);
 
@@ -217,6 +275,10 @@ function renderSaleSearchResults() {
     .join("");
 
   el.saleSearchResults.querySelectorAll("[data-product-id]").forEach((button) => {
+    button.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      selectSaleProduct(button.dataset.productId);
+    });
     button.addEventListener("click", () => selectSaleProduct(button.dataset.productId));
   });
 }
@@ -227,20 +289,29 @@ function selectSaleProduct(id) {
 
   el.saleProductId.value = product.id;
   el.saleSearch.value = product.name;
-  el.saleSearchResults.innerHTML = "";
+  hideSaleSearchResults();
   updateSalePreview();
+  el.saleQty.focus();
+}
+
+function hideSaleSearchResults() {
+  el.saleSearchResults.innerHTML = "";
+  el.saleSearchResults.classList.add("hidden");
 }
 
 function updateSalePreview() {
   const product = state.products.find((item) => item.id === el.saleProductId.value);
   const qty = Math.max(1, Number(el.saleQty.value) || 1);
+  const editingSale = state.sales.find((sale) => sale.id === editingSaleId);
 
   if (!product) {
     showSaleMessage("Gõ tên sản phẩm rồi bấm chọn trong danh sách kết quả.");
     return;
   }
 
-  showSaleMessage(`Tạm tính: ${formatMoney(product.price * qty)}. Tồn kho hiện tại: ${product.stock}.`);
+  const availableStock = product.stock + (editingSale?.productId === product.id ? editingSale.qty : 0);
+  const action = editingSale ? "Đang sửa đơn" : "Tạm tính";
+  showSaleMessage(`${action}: ${formatMoney(product.price * qty)}. Có thể bán tối đa: ${availableStock}.`);
 }
 
 function showSaleMessage(message) {
@@ -357,10 +428,65 @@ function renderHistory() {
           <p class="item-title">${escapeHtml(sale.productName)} x ${sale.qty}</p>
           <p class="item-meta">${formatDateTime(sale.createdAt)} · ${formatMoney(sale.total)} · ${paymentMethodLabel(method)}</p>
         </div>
+        <div class="item-actions">
+          <button class="small-button" type="button" data-edit-sale="${sale.id}">Sửa</button>
+          <button class="danger-button" type="button" data-delete-sale="${sale.id}">Xóa</button>
+        </div>
       </article>
     `;
     })
     .join("");
+
+  el.saleHistory.querySelectorAll("[data-edit-sale]").forEach((button) => {
+    button.addEventListener("click", () => editSale(button.dataset.editSale));
+  });
+
+  el.saleHistory.querySelectorAll("[data-delete-sale]").forEach((button) => {
+    button.addEventListener("click", () => deleteSale(button.dataset.deleteSale));
+  });
+}
+
+function editSale(id) {
+  const sale = state.sales.find((item) => item.id === id);
+  if (!sale) return;
+
+  const product = state.products.find((item) => item.id === sale.productId);
+  if (!product) {
+    alert("Sản phẩm của đơn này đã bị xóa khỏi kho, nên không thể sửa đơn.");
+    return;
+  }
+
+  editingSaleId = sale.id;
+  el.saleProductId.value = product.id;
+  el.saleSearch.value = product.name;
+  el.saleQty.value = sale.qty;
+  el.salePayment.value = sale.paymentMethod || "cash";
+  hideSaleSearchResults();
+  el.saleSubmit.textContent = "Cập nhật đơn";
+  el.cancelSaleEdit.classList.remove("hidden");
+  switchTab("sell");
+  updateSalePreview();
+  el.saleQty.focus();
+}
+
+function deleteSale(id) {
+  const sale = state.sales.find((item) => item.id === id);
+  if (!sale) return;
+
+  const ok = confirm(`Xóa đơn "${sale.productName} x ${sale.qty}"? Tồn kho sẽ được cộng lại nếu sản phẩm còn trong kho.`);
+  if (!ok) return;
+
+  const product = state.products.find((item) => item.id === sale.productId);
+  if (product) {
+    product.stock += sale.qty;
+  }
+
+  state.sales = state.sales.filter((item) => item.id !== id);
+  if (editingSaleId === id) {
+    resetSaleForm();
+  }
+  saveState();
+  render();
 }
 
 function salesInRange(range, baseDate = new Date()) {
