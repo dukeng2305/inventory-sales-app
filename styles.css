@@ -9,6 +9,14 @@
   --primary-strong: #0f554b;
   --accent: #d98b2b;
   --danger: #b33a3a;
+  --cost: #c0392b;
+  --cost-bg: #fff5f5;
+  --cost-border: #e57373;
+  --profit: #1a7a50;
+  --profit-bg: #f0faf4;
+  --profit-border: #4caf7d;
+  --purchase-border: #e07b30;
+  --purchase-bg: #fff8f0;
   --shadow: 0 18px 40px rgba(27, 42, 37, 0.1);
 }
 
@@ -46,6 +54,11 @@ button {
   justify-content: space-between;
   gap: 16px;
   padding: 14px 0 18px;
+}
+
+.topbar-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .eyebrow {
@@ -133,6 +146,8 @@ h3 {
   font-size: 1.45rem;
 }
 
+/* ─── Tabs (4 columns) ─────────────────────────────────────────── */
+
 .tabs,
 .segmented {
   display: grid;
@@ -140,7 +155,7 @@ h3 {
 }
 
 .tabs {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   margin-bottom: 16px;
 }
 
@@ -225,8 +240,9 @@ select:focus {
   margin-bottom: 14px;
 }
 
-#saleForm > label {
-  max-width: 280px;
+#saleForm > label,
+#purchaseForm > label {
+  max-width: 400px;
   margin-bottom: 14px;
 }
 
@@ -238,6 +254,14 @@ select:focus {
 
 .primary-button:hover {
   background: var(--primary-strong);
+}
+
+.purchase-submit-btn {
+  background: var(--purchase-border);
+}
+
+.purchase-submit-btn:hover {
+  background: #c4692a;
 }
 
 .ghost-button {
@@ -290,6 +314,13 @@ select:focus {
   background: #f2f7ff;
 }
 
+/* ─── Purchase history item ──────────────────────────────────────── */
+
+.purchase-item {
+  border-left: 8px solid var(--purchase-border);
+  background: var(--purchase-bg);
+}
+
 .item-title {
   margin: 0 0 4px;
   font-weight: 800;
@@ -331,10 +362,15 @@ select:focus {
   margin-bottom: 14px;
 }
 
-.report-date-field,
+.report-date-range,
 .report-filter-field {
-  max-width: 280px;
   margin-bottom: 14px;
+}
+
+.report-date-range {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 280px));
+  gap: 12px;
 }
 
 .report-filter-field {
@@ -394,11 +430,91 @@ select:focus {
   border-left: 8px solid #2d75c7;
 }
 
+/* ─── Profit section ─────────────────────────────────────────────── */
+
+.profit-summary {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.profit-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.profit-card-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.profit-card div {
+  display: grid;
+  gap: 4px;
+}
+
+.profit-card span {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.profit-card strong {
+  display: block;
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.profit-card small {
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.cost-card {
+  background: var(--cost-bg);
+  border-left: 6px solid var(--cost-border);
+}
+
+.cost-card strong {
+  color: var(--cost);
+}
+
+.cost-card small {
+  color: var(--cost);
+}
+
+.profit-net-card {
+  background: var(--profit-bg);
+  border-left: 6px solid var(--profit-border);
+}
+
+.profit-net-card strong {
+  color: var(--profit);
+}
+
+.profit-net-card strong.profit-negative {
+  color: var(--cost);
+}
+
+.profit-net-card small {
+  color: var(--profit);
+}
+
+/* ─── Empty state ────────────────────────────────────────────────── */
+
 .empty {
   color: var(--muted);
   text-align: center;
   padding: 18px;
 }
+
+/* ─── Responsive ─────────────────────────────────────────────────── */
 
 @media (max-width: 760px) {
   .app-shell {
@@ -418,6 +534,14 @@ select:focus {
   }
 
   .payment-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .profit-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .report-date-range {
     grid-template-columns: 1fr;
   }
 

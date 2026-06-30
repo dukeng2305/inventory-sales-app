@@ -9,6 +9,7 @@ const currency = new Intl.NumberFormat("vi-VN", {
 const state = loadState();
 let reportRange = "day";
 let editingSaleId = "";
+let editingPurchaseId = "";
 
 const el = {
   todayRevenue: document.querySelector("#todayRevenue"),
@@ -21,34 +22,58 @@ const el = {
   saleSubmit: document.querySelector("#saleSubmit"),
   cancelSaleEdit: document.querySelector("#cancelSaleEdit"),
   salePreview: document.querySelector("#salePreview"),
-  reportDate: document.querySelector("#reportDate"),
+  reportStartDate: document.querySelector("#reportStartDate"),
+  reportEndDate: document.querySelector("#reportEndDate"),
   reportLabel: document.querySelector("#reportLabel"),
   reportRevenue: document.querySelector("#reportRevenue"),
   reportOrders: document.querySelector("#reportOrders"),
+  reportPurchaseCost: document.querySelector("#reportPurchaseCost"),
+  reportPurchaseCount: document.querySelector("#reportPurchaseCount"),
+  reportProfit: document.querySelector("#reportProfit"),
+  reportProfitNote: document.querySelector("#reportProfitNote"),
   cashRevenue: document.querySelector("#cashRevenue"),
   transferRevenue: document.querySelector("#transferRevenue"),
   productReportFilter: document.querySelector("#productReportFilter"),
   topProducts: document.querySelector("#topProducts"),
   saleHistory: document.querySelector("#saleHistory"),
+  importBtn: document.querySelector("#importBtn"),
+  importFile: document.querySelector("#importFile"),
   exportBtn: document.querySelector("#exportBtn"),
+  // Purchase form
+  purchaseForm: document.querySelector("#purchaseForm"),
+  purchaseAmount: document.querySelector("#purchaseAmount"),
+  purchaseDate: document.querySelector("#purchaseDate"),
+  purchaseNote: document.querySelector("#purchaseNote"),
+  purchaseSubmit: document.querySelector("#purchaseSubmit"),
+  cancelPurchaseEdit: document.querySelector("#cancelPurchaseEdit"),
+  purchasePreview: document.querySelector("#purchasePreview"),
+  purchaseHistory: document.querySelector("#purchaseHistory"),
 };
+
+// ─── Tab switching ──────────────────────────────────────────────────────────
 
 document.querySelectorAll(".tab-button").forEach((button) => {
   button.addEventListener("click", () => switchTab(button.dataset.tab));
 });
+
+// ─── Report range buttons ───────────────────────────────────────────────────
 
 document.querySelectorAll(".range-button").forEach((button) => {
   button.addEventListener("click", () => {
     reportRange = button.dataset.range;
     document.querySelectorAll(".range-button").forEach((item) => item.classList.remove("active"));
     button.classList.add("active");
+    setReportRangeDates(reportRange);
     renderReports();
   });
 });
 
-el.reportDate.value = formatDateInput(new Date());
-el.reportDate.addEventListener("change", renderReports);
+setReportRangeDates("day");
+el.reportStartDate.addEventListener("change", renderReports);
+el.reportEndDate.addEventListener("change", renderReports);
 el.productReportFilter.addEventListener("input", renderReports);
+
+// ─── Sale form ──────────────────────────────────────────────────────────────
 
 el.addOrderItem.addEventListener("click", () => {
   addOrderItemRow();
@@ -121,6 +146,55 @@ el.saleForm.addEventListener("submit", (event) => {
   showSaleMessage(`Đã lưu đơn: ${formatMoney(total)} · ${paymentMethodLabel(paymentMethod)}.`);
 });
 
+// ─── Purchase form ──────────────────────────────────────────────────────────
+
+// Set default purchase date to today
+el.purchaseDate.value = formatDateInput(new Date());
+
+el.purchaseAmount.addEventListener("input", updatePurchasePreview);
+el.purchaseNote.addEventListener("input", updatePurchasePreview);
+
+el.cancelPurchaseEdit.addEventListener("click", resetPurchaseForm);
+
+el.purchaseForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+
+  const amount = Number(el.purchaseAmount.value);
+  const date = el.purchaseDate.value;
+  const note = el.purchaseNote.value.trim();
+
+  if (!amount || amount <= 0) {
+    showPurchaseMessage("Vui lòng nhập số tiền hợp lệ.");
+    return;
+  }
+
+  const editingPurchase = state.purchases.find((p) => p.id === editingPurchaseId);
+
+  const purchaseData = { amount, date, note };
+
+  if (editingPurchase) {
+    Object.assign(editingPurchase, purchaseData);
+    saveState();
+    resetPurchaseForm();
+    render();
+    showPurchaseMessage(`Đã cập nhật nhập hàng: ${formatMoney(amount)}.`);
+    return;
+  }
+
+  state.purchases.unshift({
+    id: crypto.randomUUID(),
+    ...purchaseData,
+    createdAt: new Date().toISOString(),
+  });
+
+  saveState();
+  resetPurchaseForm();
+  render();
+  showPurchaseMessage(`Đã lưu nhập hàng: ${formatMoney(amount)}${note ? " · " + note : ""}.`);
+});
+
+// ─── Export / Import ─────────────────────────────────────────────────────────
+
 el.exportBtn.addEventListener("click", () => {
   const payload = JSON.stringify(state, null, 2);
   const blob = new Blob([payload], { type: "application/json" });
@@ -132,21 +206,58 @@ el.exportBtn.addEventListener("click", () => {
   URL.revokeObjectURL(url);
 });
 
+el.importBtn.addEventListener("click", () => {
+  el.importFile.click();
+});
+
+el.importFile.addEventListener("change", async () => {
+  const file = el.importFile.files[0];
+  if (!file) return;
+
+  try {
+    const payload = JSON.parse(await file.text());
+    if (!payload || !Array.isArray(payload.sales)) {
+      alert("File sao lưu không hợp lệ.");
+      return;
+    }
+
+    const ok = confirm("Nhập file này sẽ thay thế dữ liệu hiện tại trên máy. Bạn có muốn tiếp tục?");
+    if (!ok) return;
+
+    state.sales = payload.sales;
+    state.purchases = Array.isArray(payload.purchases) ? payload.purchases : [];
+    saveState();
+    resetSaleForm();
+    resetPurchaseForm();
+    render();
+    showSaleMessage("Đã nhập dữ liệu sao lưu.");
+  } catch (error) {
+    alert("Không thể đọc file sao lưu.");
+  } finally {
+    el.importFile.value = "";
+  }
+});
+
+// ─── State ───────────────────────────────────────────────────────────────────
+
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
     const parsed = JSON.parse(saved);
     return {
       sales: Array.isArray(parsed.sales) ? parsed.sales : [],
+      purchases: Array.isArray(parsed.purchases) ? parsed.purchases : [],
     };
   }
 
-  return { sales: [] };
+  return { sales: [], purchases: [] };
 }
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
+
+// ─── UI helpers ──────────────────────────────────────────────────────────────
 
 function switchTab(tabName) {
   document.querySelectorAll(".tab-button").forEach((item) => {
@@ -157,6 +268,8 @@ function switchTab(tabName) {
   });
 }
 
+// ─── Sale form helpers ───────────────────────────────────────────────────────
+
 function resetSaleForm() {
   editingSaleId = "";
   el.salePayment.value = "cash";
@@ -164,31 +277,6 @@ function resetSaleForm() {
   el.cancelSaleEdit.classList.add("hidden");
   renderOrderItems([{ name: "", price: "", qty: 1 }]);
   updateSalePreview();
-}
-
-function render() {
-  renderSummary();
-  renderReports();
-  renderHistory();
-}
-
-function renderSummary() {
-  const todaySales = salesInRange("day");
-  el.todayRevenue.textContent = formatMoney(sumRevenue(todaySales));
-  el.todayOrders.textContent = todaySales.length;
-  el.todayItems.textContent = todaySales.reduce((total, sale) => total + sumOrderQty(saleItems(sale)), 0);
-}
-
-function renderOrderItems(items) {
-  el.orderItems.innerHTML = items
-    .map((item, index) => orderItemTemplate(item, index))
-    .join("");
-}
-
-function addOrderItemRow(item = { name: "", price: "", qty: 1 }) {
-  el.orderItems.insertAdjacentHTML("beforeend", orderItemTemplate(item, el.orderItems.children.length));
-  const lastNameInput = el.orderItems.lastElementChild.querySelector('[data-field="name"]');
-  lastNameInput.focus();
 }
 
 function orderItemTemplate(item, index) {
@@ -211,6 +299,18 @@ function orderItemTemplate(item, index) {
   `;
 }
 
+function renderOrderItems(items) {
+  el.orderItems.innerHTML = items
+    .map((item, index) => orderItemTemplate(item, index))
+    .join("");
+}
+
+function addOrderItemRow(item = { name: "", price: "", qty: 1 }) {
+  el.orderItems.insertAdjacentHTML("beforeend", orderItemTemplate(item, el.orderItems.children.length));
+  const lastNameInput = el.orderItems.lastElementChild.querySelector('[data-field="name"]');
+  lastNameInput.focus();
+}
+
 function collectOrderItems() {
   return [...el.orderItems.querySelectorAll(".order-row")]
     .map((row) => {
@@ -228,7 +328,6 @@ function updateSalePreview() {
     showSaleMessage("Nhập sản phẩm để tạo đơn.");
     return;
   }
-
   showSaleMessage(`Tạm tính: ${formatMoney(sumOrderItems(items))} · ${items.length} sản phẩm.`);
 }
 
@@ -236,17 +335,75 @@ function showSaleMessage(message) {
   el.salePreview.textContent = message;
 }
 
+// ─── Purchase form helpers ───────────────────────────────────────────────────
+
+function resetPurchaseForm() {
+  editingPurchaseId = "";
+  el.purchaseAmount.value = "";
+  el.purchaseDate.value = formatDateInput(new Date());
+  el.purchaseNote.value = "";
+  el.purchaseSubmit.textContent = "Lưu nhập hàng";
+  el.cancelPurchaseEdit.classList.add("hidden");
+  showPurchaseMessage("Nhập số tiền để ghi nhận chi phí vốn.");
+}
+
+function updatePurchasePreview() {
+  const amount = Number(el.purchaseAmount.value);
+  const note = el.purchaseNote.value.trim();
+  if (!amount || amount <= 0) {
+    showPurchaseMessage("Nhập số tiền để ghi nhận chi phí vốn.");
+    return;
+  }
+  showPurchaseMessage(`Sẽ ghi nhận: ${formatMoney(amount)}${note ? " · " + note : ""}`);
+}
+
+function showPurchaseMessage(message) {
+  el.purchasePreview.textContent = message;
+}
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+
+function render() {
+  renderSummary();
+  renderReports();
+  renderHistory();
+  renderPurchaseHistory();
+}
+
+function renderSummary() {
+  const today = new Date();
+  const todaySales = salesInDateRange(startOfDay(today), endOfDay(today));
+  el.todayRevenue.textContent = formatMoney(sumRevenue(todaySales));
+  el.todayOrders.textContent = todaySales.length;
+  el.todayItems.textContent = todaySales.reduce((total, sale) => total + sumOrderQty(saleItems(sale)), 0);
+}
+
 function renderReports() {
-  const selectedDate = getSelectedReportDate();
-  const rangeSales = salesInRange(reportRange, selectedDate);
-  const label = reportRangeLabel(reportRange, selectedDate);
+  const { start, end } = getReportDateRange();
+  const rangeSales = salesInDateRange(start, end);
+  const rangePurchases = purchasesInDateRange(start, end);
+  const label = reportRangeLabel(start, end);
+
+  const totalRevenue = sumRevenue(rangeSales);
+  const totalCost = sumPurchases(rangePurchases);
+  const profit = totalRevenue - totalCost;
 
   el.reportLabel.textContent = label;
-  el.reportRevenue.textContent = formatMoney(sumRevenue(rangeSales));
+  el.reportRevenue.textContent = formatMoney(totalRevenue);
   el.reportOrders.textContent = `${rangeSales.length} đơn bán`;
   el.cashRevenue.textContent = formatMoney(sumRevenueByPayment(rangeSales, "cash"));
   el.transferRevenue.textContent = formatMoney(sumRevenueByPayment(rangeSales, "transfer"));
 
+  // Profit section
+  el.reportPurchaseCost.textContent = formatMoney(totalCost);
+  el.reportPurchaseCount.textContent = `${rangePurchases.length} lần nhập`;
+  el.reportProfit.textContent = formatMoney(profit);
+  el.reportProfit.classList.toggle("profit-negative", profit < 0);
+  el.reportProfitNote.textContent = profit >= 0
+    ? `Lãi ${formatMoney(profit)}`
+    : `Lỗ ${formatMoney(Math.abs(profit))}`;
+
+  // Top products
   const byProduct = new Map();
   const filter = normalizeText(el.productReportFilter.value);
   rangeSales.forEach((sale) => {
@@ -315,6 +472,39 @@ function renderHistory() {
   });
 }
 
+function renderPurchaseHistory() {
+  if (state.purchases.length === 0) {
+    el.purchaseHistory.innerHTML = `<div class="empty">Chưa có lần nhập hàng nào.</div>`;
+    return;
+  }
+
+  el.purchaseHistory.innerHTML = state.purchases
+    .slice(0, 50)
+    .map((purchase) => `
+      <article class="list-item purchase-item">
+        <div>
+          <p class="item-title">${formatMoney(purchase.amount)}</p>
+          <p class="item-meta">${formatDateOnly(parseDateInput(purchase.date))}${purchase.note ? " · " + escapeHtml(purchase.note) : ""}</p>
+        </div>
+        <div class="item-actions">
+          <button class="small-button" type="button" data-edit-purchase="${purchase.id}">Sửa</button>
+          <button class="danger-button" type="button" data-delete-purchase="${purchase.id}">Xóa</button>
+        </div>
+      </article>
+    `)
+    .join("");
+
+  el.purchaseHistory.querySelectorAll("[data-edit-purchase]").forEach((button) => {
+    button.addEventListener("click", () => editPurchase(button.dataset.editPurchase));
+  });
+
+  el.purchaseHistory.querySelectorAll("[data-delete-purchase]").forEach((button) => {
+    button.addEventListener("click", () => deletePurchase(button.dataset.deletePurchase));
+  });
+}
+
+// ─── CRUD helpers ─────────────────────────────────────────────────────────────
+
 function editSale(id) {
   const sale = state.sales.find((item) => item.id === id);
   if (!sale) return;
@@ -344,37 +534,92 @@ function deleteSale(id) {
   render();
 }
 
-function salesInRange(range, baseDate = new Date()) {
+function editPurchase(id) {
+  const purchase = state.purchases.find((p) => p.id === id);
+  if (!purchase) return;
+
+  editingPurchaseId = purchase.id;
+  el.purchaseAmount.value = purchase.amount;
+  el.purchaseDate.value = purchase.date;
+  el.purchaseNote.value = purchase.note || "";
+  el.purchaseSubmit.textContent = "Cập nhật nhập hàng";
+  el.cancelPurchaseEdit.classList.remove("hidden");
+  switchTab("purchase");
+  updatePurchasePreview();
+  el.purchaseAmount.focus();
+}
+
+function deletePurchase(id) {
+  const purchase = state.purchases.find((p) => p.id === id);
+  if (!purchase) return;
+
+  const label = purchase.note ? `"${purchase.note}"` : formatMoney(purchase.amount);
+  const ok = confirm(`Xóa lần nhập hàng ${label}?`);
+  if (!ok) return;
+
+  state.purchases = state.purchases.filter((p) => p.id !== id);
+  if (editingPurchaseId === id) {
+    resetPurchaseForm();
+  }
+  saveState();
+  render();
+}
+
+// ─── Date range helpers ───────────────────────────────────────────────────────
+
+function salesInDateRange(startDate, endDate) {
   return state.sales.filter((sale) => {
     const date = new Date(sale.createdAt);
-    if (range === "day") {
-      return date.toDateString() === baseDate.toDateString();
-    }
-    if (range === "month") {
-      return date.getFullYear() === baseDate.getFullYear() && date.getMonth() === baseDate.getMonth();
-    }
-    return date.getFullYear() === baseDate.getFullYear();
+    return date >= startDate && date <= endDate;
   });
 }
 
-function getSelectedReportDate() {
-  if (!el.reportDate.value) {
-    return new Date();
-  }
-
-  const [year, month, day] = el.reportDate.value.split("-").map(Number);
-  return new Date(year, month - 1, day);
+function purchasesInDateRange(startDate, endDate) {
+  return state.purchases.filter((purchase) => {
+    // purchases use a date string (YYYY-MM-DD), compare as start of that day
+    const date = parseDateInput(purchase.date);
+    return date >= startOfDay(startDate) && date <= endOfDay(endDate);
+  });
 }
 
-function reportRangeLabel(range, date) {
-  if (range === "day") {
-    return `Ngày ${formatDateOnly(date)}`;
-  }
+function setReportRangeDates(range) {
+  const today = new Date();
+  let start = today;
+  let end = today;
+
   if (range === "month") {
-    return `Tháng ${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()}`;
+    start = new Date(today.getFullYear(), today.getMonth(), 1);
+    end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
   }
-  return `Năm ${date.getFullYear()}`;
+
+  if (range === "year") {
+    start = new Date(today.getFullYear(), 0, 1);
+    end = new Date(today.getFullYear(), 11, 31);
+  }
+
+  el.reportStartDate.value = formatDateInput(start);
+  el.reportEndDate.value = formatDateInput(end);
 }
+
+function getReportDateRange() {
+  const start = parseDateInput(el.reportStartDate.value) || new Date();
+  const end = parseDateInput(el.reportEndDate.value) || start;
+
+  if (start > end) {
+    return { start: startOfDay(end), end: endOfDay(start) };
+  }
+
+  return { start: startOfDay(start), end: endOfDay(end) };
+}
+
+function reportRangeLabel(start, end) {
+  if (start.toDateString() === end.toDateString()) {
+    return `Ngày ${formatDateOnly(start)}`;
+  }
+  return `${formatDateOnly(start)} - ${formatDateOnly(end)}`;
+}
+
+// ─── Sale data helpers ────────────────────────────────────────────────────────
 
 function saleItems(sale) {
   if (Array.isArray(sale.items) && sale.items.length > 0) {
@@ -419,9 +664,15 @@ function sumRevenueByPayment(sales, paymentMethod) {
     .reduce((total, sale) => total + Number(sale.total || 0), 0);
 }
 
+function sumPurchases(purchases) {
+  return purchases.reduce((total, p) => total + Number(p.amount || 0), 0);
+}
+
 function paymentMethodLabel(paymentMethod) {
   return paymentMethod === "transfer" ? "Chuyển khoản" : "Tiền mặt";
 }
+
+// ─── Formatting helpers ───────────────────────────────────────────────────────
 
 function formatMoney(value) {
   return currency.format(value);
@@ -445,6 +696,20 @@ function formatDateInput(value) {
   const month = String(value.getMonth() + 1).padStart(2, "0");
   const day = String(value.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function parseDateInput(value) {
+  if (!value) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function startOfDay(value) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 0, 0, 0, 0);
+}
+
+function endOfDay(value) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 23, 59, 59, 999);
 }
 
 function normalizeText(value) {
@@ -471,6 +736,8 @@ function escapeHtml(value) {
 function escapeAttribute(value) {
   return escapeHtml(value).replace(/"/g, "&quot;");
 }
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("service-worker.js");

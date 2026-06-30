@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Bán Hàng" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <title>Quản Lý Kho & Bán Hàng</title>
+    <title>Quản Lý Kho &amp; Bán Hàng</title>
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icon.svg" />
@@ -20,7 +20,11 @@
           <p class="eyebrow">Offline</p>
           <h1>Quản lý bán hàng</h1>
         </div>
-        <button class="icon-button" id="exportBtn" type="button" title="Xuất dữ liệu">⇩</button>
+        <div class="topbar-actions">
+          <button class="icon-button" id="importBtn" type="button" title="Nhập dữ liệu">⇧</button>
+          <button class="icon-button" id="exportBtn" type="button" title="Xuất dữ liệu">⇩</button>
+          <input class="hidden" id="importFile" type="file" accept="application/json,.json" />
+        </div>
       </header>
 
       <main>
@@ -41,10 +45,12 @@
 
         <nav class="tabs" aria-label="Chức năng">
           <button class="tab-button active" type="button" data-tab="sell">Bán hàng</button>
+          <button class="tab-button" type="button" data-tab="purchase">Nhập hàng</button>
           <button class="tab-button" type="button" data-tab="reports">Báo cáo</button>
           <button class="tab-button" type="button" data-tab="history">Lịch sử</button>
         </nav>
 
+        <!-- TAB: BÁN HÀNG -->
         <section class="tab-panel active" id="sell">
           <div class="panel-heading">
             <h2>Tạo đơn bán</h2>
@@ -69,6 +75,37 @@
           <div class="notice" id="salePreview">Nhập sản phẩm để tạo đơn.</div>
         </section>
 
+        <!-- TAB: NHẬP HÀNG -->
+        <section class="tab-panel" id="purchase">
+          <div class="panel-heading">
+            <h2>Ghi nhận nhập hàng</h2>
+            <p>Nhập tổng tiền vốn mỗi lần nhập hàng để tính lợi nhuận.</p>
+          </div>
+
+          <form id="purchaseForm">
+            <label>
+              Số tiền nhập hàng (đ)
+              <input id="purchaseAmount" type="number" min="0" step="1000" placeholder="Ví dụ: 40000000" required />
+            </label>
+            <label>
+              Ngày nhập hàng
+              <input id="purchaseDate" type="date" required />
+            </label>
+            <label>
+              Ghi chú (tùy chọn)
+              <input id="purchaseNote" type="text" placeholder="Ví dụ: Hàng tháng 7, nhà CC ABC" />
+            </label>
+            <button class="primary-button purchase-submit-btn" id="purchaseSubmit" type="submit">Lưu nhập hàng</button>
+            <button class="ghost-button hidden" id="cancelPurchaseEdit" type="button">Hủy sửa</button>
+          </form>
+
+          <div class="notice" id="purchasePreview">Nhập số tiền để ghi nhận chi phí vốn.</div>
+
+          <h3>Lịch sử nhập hàng</h3>
+          <div class="list" id="purchaseHistory"></div>
+        </section>
+
+        <!-- TAB: BÁO CÁO -->
         <section class="tab-panel" id="reports">
           <div class="panel-heading">
             <h2>Báo cáo doanh thu</h2>
@@ -81,10 +118,16 @@
             <button class="range-button" type="button" data-range="year">Năm</button>
           </div>
 
-          <label class="report-date-field">
-            Chọn ngày xem báo cáo
-            <input id="reportDate" type="date" />
-          </label>
+          <div class="report-date-range">
+            <label>
+              Từ ngày
+              <input id="reportStartDate" type="date" />
+            </label>
+            <label>
+              Đến ngày
+              <input id="reportEndDate" type="date" />
+            </label>
+          </div>
 
           <div class="report-card">
             <span id="reportLabel">Hôm nay</span>
@@ -103,6 +146,26 @@
             </article>
           </div>
 
+          <!-- PROFIT SECTION -->
+          <div class="profit-summary">
+            <article class="profit-card cost-card">
+              <div class="profit-card-icon">📦</div>
+              <div>
+                <span>Chi phí nhập hàng</span>
+                <strong id="reportPurchaseCost">0 đ</strong>
+                <small id="reportPurchaseCount">0 lần nhập</small>
+              </div>
+            </article>
+            <article class="profit-card profit-net-card">
+              <div class="profit-card-icon">💰</div>
+              <div>
+                <span>Lợi nhuận ước tính</span>
+                <strong id="reportProfit">0 đ</strong>
+                <small id="reportProfitNote">Doanh thu − Chi phí nhập</small>
+              </div>
+            </article>
+          </div>
+
           <label class="report-filter-field">
             Lọc sản phẩm
             <input id="productReportFilter" type="search" placeholder="Ví dụ: vòng tay hoặc 195000" autocomplete="off" />
@@ -112,6 +175,7 @@
           <div class="list compact" id="topProducts"></div>
         </section>
 
+        <!-- TAB: LỊCH SỬ BÁN HÀNG -->
         <section class="tab-panel" id="history">
           <div class="panel-heading">
             <h2>Lịch sử bán hàng</h2>
