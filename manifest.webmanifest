@@ -1,0 +1,19 @@
+{
+  "name": "Quản Lý Kho & Bán Hàng",
+  "short_name": "Bán Hàng",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f7f3",
+  "theme_color": "#146c5f",
+  "description": "Ứng dụng offline đơn giản để quản lý tồn kho và doanh thu bán hàng.",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

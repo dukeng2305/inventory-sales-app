@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#146c5f" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Bán Hàng" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <title>Quản Lý Kho & Bán Hàng</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icon.svg" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Offline</p>
+          <h1>Quản lý bán hàng</h1>
+        </div>
+        <button class="icon-button" id="exportBtn" type="button" title="Xuất dữ liệu">⇩</button>
+      </header>
+
+      <main>
+        <section class="summary-grid" aria-label="Tổng quan">
+          <article>
+            <span>Doanh thu hôm nay</span>
+            <strong id="todayRevenue">0 đ</strong>
+          </article>
+          <article>
+            <span>Số đơn hôm nay</span>
+            <strong id="todayOrders">0</strong>
+          </article>
+          <article>
+            <span>Sắp hết hàng</span>
+            <strong id="lowStockCount">0</strong>
+          </article>
+        </section>
+
+        <nav class="tabs" aria-label="Chức năng">
+          <button class="tab-button active" type="button" data-tab="sell">Bán hàng</button>
+          <button class="tab-button" type="button" data-tab="products">Kho hàng</button>
+          <button class="tab-button" type="button" data-tab="reports">Báo cáo</button>
+          <button class="tab-button" type="button" data-tab="history">Lịch sử</button>
+        </nav>
+
+        <section class="tab-panel active" id="sell">
+          <div class="panel-heading">
+            <h2>Tạo đơn bán</h2>
+            <p>Chọn sản phẩm, nhập số lượng và lưu đơn.</p>
+          </div>
+
+          <form class="form-grid" id="saleForm">
+            <label class="search-field">
+              Sản phẩm
+              <input id="saleProductId" type="hidden" />
+              <input id="saleSearch" type="search" placeholder="Gõ tên sản phẩm..." autocomplete="off" required />
+              <div class="search-results" id="saleSearchResults"></div>
+            </label>
+            <label>
+              Số lượng
+              <input id="saleQty" type="number" min="1" step="1" value="1" required />
+            </label>
+            <label>
+              Thanh toán
+              <select id="salePayment" required>
+                <option value="cash">Tiền mặt</option>
+                <option value="transfer">Chuyển khoản</option>
+              </select>
+            </label>
+            <button class="primary-button" id="saleSubmit" type="submit">Lưu đơn bán</button>
+          </form>
+
+          <div class="notice" id="salePreview">Chưa có sản phẩm để bán.</div>
+        </section>
+
+        <section class="tab-panel" id="products">
+          <div class="panel-heading">
+            <h2>Kho hàng</h2>
+            <p>Thêm sản phẩm mới hoặc nhập thêm số lượng.</p>
+          </div>
+
+          <form class="form-grid product-form" id="productForm">
+            <input id="productId" type="hidden" />
+            <label>
+              Tên sản phẩm
+              <input id="productName" type="text" placeholder="Ví dụ: Áo thun" required />
+            </label>
+            <label>
+              Giá bán
+              <input id="productPrice" type="number" min="0" step="1000" placeholder="120000" required />
+            </label>
+            <label>
+              Tồn kho
+              <input id="productStock" type="number" min="0" step="1" placeholder="30" required />
+            </label>
+            <label>
+              Mức cảnh báo
+              <input id="productLowStock" type="number" min="0" step="1" value="5" required />
+            </label>
+            <button class="primary-button" type="submit">Lưu sản phẩm</button>
+            <button class="ghost-button" id="resetProductForm" type="button">Nhập mới</button>
+          </form>
+
+          <div class="list" id="productList"></div>
+        </section>
+
+        <section class="tab-panel" id="reports">
+          <div class="panel-heading">
+            <h2>Báo cáo doanh thu</h2>
+            <p>Xem nhanh doanh thu theo ngày, tháng hoặc năm.</p>
+          </div>
+
+          <div class="segmented">
+            <button class="range-button active" type="button" data-range="day">Ngày</button>
+            <button class="range-button" type="button" data-range="month">Tháng</button>
+            <button class="range-button" type="button" data-range="year">Năm</button>
+          </div>
+
+          <label class="report-date-field">
+            Chọn ngày xem báo cáo
+            <input id="reportDate" type="date" />
+          </label>
+
+          <div class="report-card">
+            <span id="reportLabel">Hôm nay</span>
+            <strong id="reportRevenue">0 đ</strong>
+            <small id="reportOrders">0 đơn bán</small>
+          </div>
+
+          <div class="payment-summary">
+            <article class="payment-card cash-card">
+              <span>Tiền mặt</span>
+              <strong id="cashRevenue">0 đ</strong>
+            </article>
+            <article class="payment-card transfer-card">
+              <span>Chuyển khoản</span>
+              <strong id="transferRevenue">0 đ</strong>
+            </article>
+          </div>
+
+          <h3>Sản phẩm bán chạy</h3>
+          <div class="list compact" id="topProducts"></div>
+        </section>
+
+        <section class="tab-panel" id="history">
+          <div class="panel-heading">
+            <h2>Lịch sử bán hàng</h2>
+            <p>Các đơn mới nhất được lưu trên thiết bị này.</p>
+          </div>
+          <div class="list" id="saleHistory"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
