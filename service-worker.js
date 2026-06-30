@@ -1,4 +1,4 @@
-const CACHE_NAME = "inventory-sales-app-v7";
+const CACHE_NAME = "inventory-sales-app-v9";
 const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {

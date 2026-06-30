@@ -34,14 +34,13 @@
             <strong id="todayOrders">0</strong>
           </article>
           <article>
-            <span>Sắp hết hàng</span>
-            <strong id="lowStockCount">0</strong>
+            <span>Sản phẩm hôm nay</span>
+            <strong id="todayItems">0</strong>
           </article>
         </section>
 
         <nav class="tabs" aria-label="Chức năng">
           <button class="tab-button active" type="button" data-tab="sell">Bán hàng</button>
-          <button class="tab-button" type="button" data-tab="products">Kho hàng</button>
           <button class="tab-button" type="button" data-tab="reports">Báo cáo</button>
           <button class="tab-button" type="button" data-tab="history">Lịch sử</button>
         </nav>
@@ -49,20 +48,13 @@
         <section class="tab-panel active" id="sell">
           <div class="panel-heading">
             <h2>Tạo đơn bán</h2>
-            <p>Chọn sản phẩm, nhập số lượng và lưu đơn.</p>
+            <p>Nhập sản phẩm, giá, số lượng và lưu đơn.</p>
           </div>
 
-          <form class="form-grid" id="saleForm">
-            <label class="search-field">
-              Sản phẩm
-              <input id="saleProductId" type="hidden" />
-              <input id="saleSearch" type="search" placeholder="Gõ tên sản phẩm..." autocomplete="off" required />
-              <div class="search-results" id="saleSearchResults"></div>
-            </label>
-            <label>
-              Số lượng
-              <input id="saleQty" type="number" min="1" step="1" value="1" required />
-            </label>
+          <form id="saleForm">
+            <div class="order-items" id="orderItems"></div>
+            <button class="ghost-button add-item-button" id="addOrderItem" type="button">Thêm sản phẩm</button>
+
             <label>
               Thanh toán
               <select id="salePayment" required>
@@ -74,38 +66,7 @@
             <button class="ghost-button hidden" id="cancelSaleEdit" type="button">Hủy sửa</button>
           </form>
 
-          <div class="notice" id="salePreview">Chưa có sản phẩm để bán.</div>
-        </section>
-
-        <section class="tab-panel" id="products">
-          <div class="panel-heading">
-            <h2>Kho hàng</h2>
-            <p>Thêm sản phẩm mới hoặc nhập thêm số lượng.</p>
-          </div>
-
-          <form class="form-grid product-form" id="productForm">
-            <input id="productId" type="hidden" />
-            <label>
-              Tên sản phẩm
-              <input id="productName" type="text" placeholder="Ví dụ: Áo thun" required />
-            </label>
-            <label>
-              Giá bán
-              <input id="productPrice" type="number" min="0" step="1000" placeholder="120000" required />
-            </label>
-            <label>
-              Tồn kho
-              <input id="productStock" type="number" min="0" step="1" placeholder="30" required />
-            </label>
-            <label>
-              Mức cảnh báo
-              <input id="productLowStock" type="number" min="0" step="1" value="5" required />
-            </label>
-            <button class="primary-button" type="submit">Lưu sản phẩm</button>
-            <button class="ghost-button" id="resetProductForm" type="button">Nhập mới</button>
-          </form>
-
-          <div class="list" id="productList"></div>
+          <div class="notice" id="salePreview">Nhập sản phẩm để tạo đơn.</div>
         </section>
 
         <section class="tab-panel" id="reports">
@@ -142,7 +103,12 @@
             </article>
           </div>
 
-          <h3>Sản phẩm bán chạy</h3>
+          <label class="report-filter-field">
+            Lọc sản phẩm
+            <input id="productReportFilter" type="search" placeholder="Ví dụ: vòng tay hoặc 195000" autocomplete="off" />
+          </label>
+
+          <h3>Doanh thu theo sản phẩm</h3>
           <div class="list compact" id="topProducts"></div>
         </section>
 

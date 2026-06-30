@@ -140,7 +140,7 @@ h3 {
 }
 
 .tabs {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   margin-bottom: 16px;
 }
 
@@ -179,27 +179,12 @@ h3 {
   margin-bottom: 0;
 }
 
-.form-grid {
-  display: grid;
-  grid-template-columns: 1.4fr 0.7fr 0.9fr auto auto;
-  gap: 12px;
-  align-items: end;
-}
-
-.product-form {
-  grid-template-columns: 1.5fr 1fr 0.8fr 0.8fr auto auto;
-}
-
 label {
   display: grid;
   gap: 7px;
   color: var(--muted);
   font-size: 0.9rem;
   font-weight: 700;
-}
-
-.search-field {
-  position: relative;
 }
 
 input,
@@ -219,58 +204,30 @@ select:focus {
   outline: 3px solid rgba(20, 108, 95, 0.14);
 }
 
-.search-results {
-  position: absolute;
-  z-index: 5;
-  top: calc(100% + 6px);
-  left: 0;
-  right: 0;
+.order-items {
   display: grid;
-  gap: 6px;
-  max-height: 260px;
-  overflow: auto;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.order-row {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr 0.7fr auto;
+  gap: 10px;
+  align-items: end;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--surface);
-  box-shadow: var(--shadow);
-  padding: 8px;
+  background: #fbfcfb;
+  padding: 12px;
 }
 
-.search-results:empty {
-  display: none;
+.add-item-button {
+  margin-bottom: 14px;
 }
 
-.search-result {
-  display: grid;
-  gap: 3px;
-  width: 100%;
-  min-height: 50px;
-  border: 0;
-  border-radius: 8px;
-  background: #f7faf8;
-  color: var(--ink);
-  padding: 8px 10px;
-  text-align: left;
-}
-
-.search-result:hover,
-.search-result:focus {
-  background: #edf5f1;
-  outline: 2px solid rgba(20, 108, 95, 0.18);
-}
-
-.search-result span {
-  font-weight: 800;
-}
-
-.search-result small,
-.search-empty {
-  color: var(--muted);
-}
-
-.search-empty {
-  padding: 10px;
-  font-weight: 600;
+#saleForm > label {
+  max-width: 280px;
+  margin-bottom: 14px;
 }
 
 .primary-button {
@@ -365,14 +322,28 @@ select:focus {
   color: var(--danger);
 }
 
+.remove-item-button {
+  min-width: 64px;
+}
+
 .segmented {
   grid-template-columns: repeat(3, 1fr);
   margin-bottom: 14px;
 }
 
-.report-date-field {
+.report-date-field,
+.report-filter-field {
   max-width: 280px;
   margin-bottom: 14px;
+}
+
+.report-filter-field {
+  margin-top: 18px;
+}
+
+.product-report-item strong {
+  font-size: 1.05rem;
+  text-align: right;
 }
 
 .report-card {
@@ -442,8 +413,7 @@ select:focus {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .form-grid,
-  .product-form {
+  .order-row {
     grid-template-columns: 1fr;
   }
 
