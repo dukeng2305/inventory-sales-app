@@ -136,15 +136,20 @@
           </div>
 
           <div class="payment-summary">
-            <article class="payment-card cash-card">
+            <article class="payment-card cash-card" data-payment-report="cash" role="button" tabindex="0">
               <span>Tiền mặt</span>
               <strong id="cashRevenue">0 đ</strong>
             </article>
-            <article class="payment-card transfer-card">
+            <article class="payment-card transfer-card" data-payment-report="transfer" role="button" tabindex="0">
               <span>Chuyển khoản</span>
               <strong id="transferRevenue">0 đ</strong>
             </article>
           </div>
+
+          <section class="payment-orders hidden" id="paymentOrdersPanel">
+            <h3 id="paymentOrdersTitle">Đơn hàng</h3>
+            <div class="list compact" id="paymentOrders"></div>
+          </section>
 
           <!-- PROFIT SECTION -->
           <div class="profit-summary">

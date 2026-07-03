@@ -410,6 +410,11 @@ select:focus {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 14px;
+  cursor: pointer;
+}
+
+.payment-card.active {
+  outline: 3px solid rgba(20, 108, 95, 0.18);
 }
 
 .payment-card span {
@@ -428,6 +433,10 @@ select:focus {
 .transfer-card {
   background: #f2f7ff;
   border-left: 8px solid #2d75c7;
+}
+
+.payment-orders {
+  margin-top: 16px;
 }
 
 /* ─── Profit section ─────────────────────────────────────────────── */

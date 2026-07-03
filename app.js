@@ -10,6 +10,7 @@ const state = loadState();
 let reportRange = "day";
 let editingSaleId = "";
 let editingPurchaseId = "";
+let selectedReportPayment = "";
 
 const el = {
   todayRevenue: document.querySelector("#todayRevenue"),
@@ -33,6 +34,9 @@ const el = {
   reportProfitNote: document.querySelector("#reportProfitNote"),
   cashRevenue: document.querySelector("#cashRevenue"),
   transferRevenue: document.querySelector("#transferRevenue"),
+  paymentOrdersPanel: document.querySelector("#paymentOrdersPanel"),
+  paymentOrdersTitle: document.querySelector("#paymentOrdersTitle"),
+  paymentOrders: document.querySelector("#paymentOrders"),
   productReportFilter: document.querySelector("#productReportFilter"),
   topProducts: document.querySelector("#topProducts"),
   saleHistory: document.querySelector("#saleHistory"),
@@ -72,6 +76,16 @@ setReportRangeDates("day");
 el.reportStartDate.addEventListener("change", renderReports);
 el.reportEndDate.addEventListener("change", renderReports);
 el.productReportFilter.addEventListener("input", renderReports);
+
+document.querySelectorAll("[data-payment-report]").forEach((card) => {
+  card.addEventListener("click", () => toggleReportPayment(card.dataset.paymentReport));
+  card.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      toggleReportPayment(card.dataset.paymentReport);
+    }
+  });
+});
 
 // ─── Sale form ──────────────────────────────────────────────────────────────
 
@@ -393,6 +407,7 @@ function renderReports() {
   el.reportOrders.textContent = `${rangeSales.length} đơn bán`;
   el.cashRevenue.textContent = formatMoney(sumRevenueByPayment(rangeSales, "cash"));
   el.transferRevenue.textContent = formatMoney(sumRevenueByPayment(rangeSales, "transfer"));
+  renderReportPaymentOrders(rangeSales, label);
 
   // Profit section
   el.reportPurchaseCost.textContent = formatMoney(totalCost);
@@ -434,6 +449,44 @@ function renderReports() {
         `)
         .join("")
     : `<div class="empty">Chưa có sản phẩm khớp trong kỳ này.</div>`;
+}
+
+function toggleReportPayment(paymentMethod) {
+  selectedReportPayment = selectedReportPayment === paymentMethod ? "" : paymentMethod;
+  renderReports();
+}
+
+function renderReportPaymentOrders(rangeSales, label) {
+  document.querySelectorAll("[data-payment-report]").forEach((card) => {
+    card.classList.toggle("active", card.dataset.paymentReport === selectedReportPayment);
+  });
+
+  if (!selectedReportPayment) {
+    el.paymentOrdersPanel.classList.add("hidden");
+    el.paymentOrders.innerHTML = "";
+    return;
+  }
+
+  const sales = rangeSales.filter((sale) => (sale.paymentMethod || "cash") === selectedReportPayment);
+  const methodLabel = paymentMethodLabel(selectedReportPayment);
+  el.paymentOrdersPanel.classList.remove("hidden");
+  el.paymentOrdersTitle.textContent = `Đơn hàng ${methodLabel.toLowerCase()} · ${label}`;
+  el.paymentOrders.innerHTML = sales.length
+    ? sales
+        .map((sale) => {
+          const items = saleItems(sale);
+          return `
+            <article class="list-item sale-item ${selectedReportPayment}">
+              <div>
+                <p class="item-title">${escapeHtml(saleTitle(items))}</p>
+                <p class="item-meta">${formatDateTime(sale.createdAt)} · ${formatMoney(sale.total)}</p>
+                <p class="item-meta">${escapeHtml(items.map((item) => `${item.name} x ${item.qty}`).join(" · "))}</p>
+              </div>
+            </article>
+          `;
+        })
+        .join("")
+    : `<div class="empty">Không có đơn ${methodLabel.toLowerCase()} trong khoảng ngày này.</div>`;
 }
 
 function renderHistory() {
