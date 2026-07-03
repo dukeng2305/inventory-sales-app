@@ -135,19 +135,6 @@
             <small id="reportOrders">0 đơn bán</small>
           </div>
 
-          <div class="shift-summary">
-            <article class="shift-card morning-card">
-              <span>Buổi sáng</span>
-              <strong id="morningRevenue">0 đ</strong>
-              <small id="morningOrders">0 đơn trước 14:00</small>
-            </article>
-            <article class="shift-card afternoon-card">
-              <span>Buổi chiều</span>
-              <strong id="afternoonRevenue">0 đ</strong>
-              <small id="afternoonOrders">0 đơn từ 14:00</small>
-            </article>
-          </div>
-
           <div class="payment-summary">
             <article class="payment-card cash-card" data-payment-report="cash" role="button" tabindex="0">
               <span>Tiền mặt</span>
@@ -158,6 +145,40 @@
               <strong id="transferRevenue">0 đ</strong>
             </article>
           </div>
+
+          <section class="shift-payment-summary" aria-label="Doanh thu theo ca và hình thức thanh toán">
+            <div class="shift-payment-heading">
+              <h3>Doanh thu theo ca</h3>
+              <small>Trước 14:00 là buổi sáng, từ 14:00 là buổi chiều</small>
+            </div>
+            <div class="shift-payment-grid">
+              <div class="shift-payment-header"></div>
+              <div class="shift-payment-header">Tiền mặt</div>
+              <div class="shift-payment-header">Chuyển khoản</div>
+
+              <div class="shift-payment-label">
+                <strong>Buổi sáng</strong>
+                <small id="morningOrders">0 đơn</small>
+              </div>
+              <div class="shift-payment-cell cash">
+                <strong id="morningCashRevenue">0 đ</strong>
+              </div>
+              <div class="shift-payment-cell transfer">
+                <strong id="morningTransferRevenue">0 đ</strong>
+              </div>
+
+              <div class="shift-payment-label">
+                <strong>Buổi chiều</strong>
+                <small id="afternoonOrders">0 đơn</small>
+              </div>
+              <div class="shift-payment-cell cash">
+                <strong id="afternoonCashRevenue">0 đ</strong>
+              </div>
+              <div class="shift-payment-cell transfer">
+                <strong id="afternoonTransferRevenue">0 đ</strong>
+              </div>
+            </div>
+          </section>
 
           <section class="payment-orders hidden" id="paymentOrdersPanel">
             <h3 id="paymentOrdersTitle">Đơn hàng</h3>

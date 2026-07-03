@@ -28,9 +28,11 @@ const el = {
   reportLabel: document.querySelector("#reportLabel"),
   reportRevenue: document.querySelector("#reportRevenue"),
   reportOrders: document.querySelector("#reportOrders"),
-  morningRevenue: document.querySelector("#morningRevenue"),
+  morningCashRevenue: document.querySelector("#morningCashRevenue"),
+  morningTransferRevenue: document.querySelector("#morningTransferRevenue"),
   morningOrders: document.querySelector("#morningOrders"),
-  afternoonRevenue: document.querySelector("#afternoonRevenue"),
+  afternoonCashRevenue: document.querySelector("#afternoonCashRevenue"),
+  afternoonTransferRevenue: document.querySelector("#afternoonTransferRevenue"),
   afternoonOrders: document.querySelector("#afternoonOrders"),
   reportPurchaseCost: document.querySelector("#reportPurchaseCost"),
   reportPurchaseCount: document.querySelector("#reportPurchaseCount"),
@@ -411,10 +413,12 @@ function renderReports() {
   el.reportLabel.textContent = label;
   el.reportRevenue.textContent = formatMoney(totalRevenue);
   el.reportOrders.textContent = `${rangeSales.length} đơn bán`;
-  el.morningRevenue.textContent = formatMoney(sumRevenue(morningSales));
-  el.morningOrders.textContent = `${morningSales.length} đơn trước 14:00`;
-  el.afternoonRevenue.textContent = formatMoney(sumRevenue(afternoonSales));
-  el.afternoonOrders.textContent = `${afternoonSales.length} đơn từ 14:00`;
+  el.morningCashRevenue.textContent = formatMoney(sumRevenueByPayment(morningSales, "cash"));
+  el.morningTransferRevenue.textContent = formatMoney(sumRevenueByPayment(morningSales, "transfer"));
+  el.morningOrders.textContent = `${morningSales.length} đơn`;
+  el.afternoonCashRevenue.textContent = formatMoney(sumRevenueByPayment(afternoonSales, "cash"));
+  el.afternoonTransferRevenue.textContent = formatMoney(sumRevenueByPayment(afternoonSales, "transfer"));
+  el.afternoonOrders.textContent = `${afternoonSales.length} đơn`;
   el.cashRevenue.textContent = formatMoney(sumRevenueByPayment(rangeSales, "cash"));
   el.transferRevenue.textContent = formatMoney(sumRevenueByPayment(rangeSales, "transfer"));
   renderReportPaymentOrders(rangeSales, label);

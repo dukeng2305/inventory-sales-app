@@ -397,7 +397,6 @@ select:focus {
   font-weight: 800;
 }
 
-.shift-summary,
 .payment-summary {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -405,7 +404,6 @@ select:focus {
   margin-top: 12px;
 }
 
-.shift-card,
 .payment-card {
   display: grid;
   gap: 8px;
@@ -422,29 +420,12 @@ select:focus {
   outline: 3px solid rgba(20, 108, 95, 0.18);
 }
 
-.shift-card span,
 .payment-card span {
   color: var(--muted);
 }
 
-.shift-card strong,
 .payment-card strong {
   font-size: 1.25rem;
-}
-
-.shift-card small {
-  color: var(--muted);
-  font-weight: 750;
-}
-
-.morning-card {
-  background: #f7fbff;
-  border-left: 8px solid #3d8fd6;
-}
-
-.afternoon-card {
-  background: #fff7ed;
-  border-left: 8px solid #d98b2b;
 }
 
 .cash-card {
@@ -459,6 +440,77 @@ select:focus {
 
 .payment-orders {
   margin-top: 16px;
+}
+
+.shift-payment-summary {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfb;
+  margin-top: 12px;
+  padding: 14px;
+}
+
+.shift-payment-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.shift-payment-heading h3 {
+  margin: 0;
+}
+
+.shift-payment-heading small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.shift-payment-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.shift-payment-header,
+.shift-payment-label,
+.shift-payment-cell {
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.shift-payment-header {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-align: right;
+}
+
+.shift-payment-label {
+  display: grid;
+  gap: 4px;
+  background: #f2f6f4;
+}
+
+.shift-payment-label small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.shift-payment-cell {
+  display: grid;
+  align-items: center;
+  min-height: 58px;
+  text-align: right;
+}
+
+.shift-payment-cell.cash {
+  background: #fffaf2;
+}
+
+.shift-payment-cell.transfer {
+  background: #f2f7ff;
 }
 
 /* ─── Profit section ─────────────────────────────────────────────── */
@@ -564,9 +616,24 @@ select:focus {
     grid-template-columns: 1fr;
   }
 
-  .shift-summary,
   .payment-summary {
     grid-template-columns: 1fr;
+  }
+
+  .shift-payment-heading {
+    display: grid;
+  }
+
+  .shift-payment-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .shift-payment-header {
+    display: none;
+  }
+
+  .shift-payment-cell {
+    text-align: left;
   }
 
   .profit-summary {
