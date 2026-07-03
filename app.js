@@ -20,6 +20,7 @@ const el = {
   orderItems: document.querySelector("#orderItems"),
   addOrderItem: document.querySelector("#addOrderItem"),
   salePayment: document.querySelector("#salePayment"),
+  saleDateTime: document.querySelector("#saleDateTime"),
   saleSubmit: document.querySelector("#saleSubmit"),
   cancelSaleEdit: document.querySelector("#cancelSaleEdit"),
   salePreview: document.querySelector("#salePreview"),
@@ -128,9 +129,15 @@ el.saleForm.addEventListener("submit", (event) => {
 
   const items = collectOrderItems();
   const paymentMethod = el.salePayment.value;
+  const saleDateTime = getSaleDateTimeIso();
 
   if (items.length === 0) {
     showSaleMessage("Bạn cần nhập ít nhất một sản phẩm trong đơn.");
+    return;
+  }
+
+  if (!saleDateTime) {
+    showSaleMessage("Bạn cần chọn ngày giờ bán hợp lệ.");
     return;
   }
 
@@ -143,6 +150,7 @@ el.saleForm.addEventListener("submit", (event) => {
     unitPrice: items.length === 1 ? items[0].price : 0,
     total,
     paymentMethod,
+    createdAt: saleDateTime,
   };
 
   if (editingSale) {
@@ -157,7 +165,6 @@ el.saleForm.addEventListener("submit", (event) => {
   state.sales.unshift({
     id: crypto.randomUUID(),
     ...saleData,
-    createdAt: new Date().toISOString(),
   });
 
   saveState();
@@ -293,10 +300,20 @@ function switchTab(tabName) {
 function resetSaleForm() {
   editingSaleId = "";
   el.salePayment.value = "cash";
+  el.saleDateTime.value = formatDateTimeInput(new Date());
   el.saleSubmit.textContent = "Lưu đơn bán";
   el.cancelSaleEdit.classList.add("hidden");
   renderOrderItems([{ name: "", price: "", qty: 1 }]);
   updateSalePreview();
+}
+
+function getSaleDateTimeIso() {
+  if (!el.saleDateTime.value) return "";
+
+  const date = new Date(el.saleDateTime.value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return date.toISOString();
 }
 
 function orderItemTemplate(item, index) {
@@ -579,6 +596,7 @@ function editSale(id) {
   editingSaleId = sale.id;
   renderOrderItems(saleItems(sale));
   el.salePayment.value = sale.paymentMethod || "cash";
+  el.saleDateTime.value = formatDateTimeInput(new Date(sale.createdAt || Date.now()));
   el.saleSubmit.textContent = "Cập nhật đơn";
   el.cancelSaleEdit.classList.remove("hidden");
   switchTab("sell");
@@ -770,6 +788,15 @@ function formatDateInput(value) {
   const month = String(value.getMonth() + 1).padStart(2, "0");
   const day = String(value.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function formatDateTimeInput(value) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  const hours = String(value.getHours()).padStart(2, "0");
+  const minutes = String(value.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
 function parseDateInput(value) {
