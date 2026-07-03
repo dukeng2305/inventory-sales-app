@@ -397,6 +397,7 @@ select:focus {
   font-weight: 800;
 }
 
+.shift-summary,
 .payment-summary {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -404,12 +405,16 @@ select:focus {
   margin-top: 12px;
 }
 
+.shift-card,
 .payment-card {
   display: grid;
   gap: 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 14px;
+}
+
+.payment-card {
   cursor: pointer;
 }
 
@@ -417,12 +422,29 @@ select:focus {
   outline: 3px solid rgba(20, 108, 95, 0.18);
 }
 
+.shift-card span,
 .payment-card span {
   color: var(--muted);
 }
 
+.shift-card strong,
 .payment-card strong {
   font-size: 1.25rem;
+}
+
+.shift-card small {
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.morning-card {
+  background: #f7fbff;
+  border-left: 8px solid #3d8fd6;
+}
+
+.afternoon-card {
+  background: #fff7ed;
+  border-left: 8px solid #d98b2b;
 }
 
 .cash-card {
@@ -542,6 +564,7 @@ select:focus {
     grid-template-columns: 1fr;
   }
 
+  .shift-summary,
   .payment-summary {
     grid-template-columns: 1fr;
   }

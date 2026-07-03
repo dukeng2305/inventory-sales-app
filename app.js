@@ -28,6 +28,10 @@ const el = {
   reportLabel: document.querySelector("#reportLabel"),
   reportRevenue: document.querySelector("#reportRevenue"),
   reportOrders: document.querySelector("#reportOrders"),
+  morningRevenue: document.querySelector("#morningRevenue"),
+  morningOrders: document.querySelector("#morningOrders"),
+  afternoonRevenue: document.querySelector("#afternoonRevenue"),
+  afternoonOrders: document.querySelector("#afternoonOrders"),
   reportPurchaseCost: document.querySelector("#reportPurchaseCost"),
   reportPurchaseCount: document.querySelector("#reportPurchaseCount"),
   reportProfit: document.querySelector("#reportProfit"),
@@ -401,10 +405,16 @@ function renderReports() {
   const totalRevenue = sumRevenue(rangeSales);
   const totalCost = sumPurchases(rangePurchases);
   const profit = totalRevenue - totalCost;
+  const morningSales = salesInShift(rangeSales, "morning");
+  const afternoonSales = salesInShift(rangeSales, "afternoon");
 
   el.reportLabel.textContent = label;
   el.reportRevenue.textContent = formatMoney(totalRevenue);
   el.reportOrders.textContent = `${rangeSales.length} đơn bán`;
+  el.morningRevenue.textContent = formatMoney(sumRevenue(morningSales));
+  el.morningOrders.textContent = `${morningSales.length} đơn trước 14:00`;
+  el.afternoonRevenue.textContent = formatMoney(sumRevenue(afternoonSales));
+  el.afternoonOrders.textContent = `${afternoonSales.length} đơn từ 14:00`;
   el.cashRevenue.textContent = formatMoney(sumRevenueByPayment(rangeSales, "cash"));
   el.transferRevenue.textContent = formatMoney(sumRevenueByPayment(rangeSales, "transfer"));
   renderReportPaymentOrders(rangeSales, label);
@@ -624,6 +634,13 @@ function salesInDateRange(startDate, endDate) {
   return state.sales.filter((sale) => {
     const date = new Date(sale.createdAt);
     return date >= startDate && date <= endDate;
+  });
+}
+
+function salesInShift(sales, shift) {
+  return sales.filter((sale) => {
+    const hour = new Date(sale.createdAt).getHours();
+    return shift === "morning" ? hour < 14 : hour >= 14;
   });
 }
 
