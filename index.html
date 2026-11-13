@@ -2,64 +2,98 @@
 <html lang="vi">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#146c5f" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#1769ec" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Bán Hàng" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Quản Lý Kho &amp; Bán Hàng</title>
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="icon.svg" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <div class="app-shell">
       <header class="topbar">
-        <div>
-          <p class="eyebrow">Offline</p>
-          <h1>Quản lý bán hàng</h1>
-        </div>
-        <div class="topbar-actions">
-          <button class="icon-button" id="importBtn" type="button" title="Nhập dữ liệu">⇧</button>
-          <button class="icon-button" id="exportBtn" type="button" title="Xuất dữ liệu">⇩</button>
-          <input class="hidden" id="importFile" type="file" accept="application/json,.json" />
-        </div>
+        <a class="brand" href="#overview" data-go="overview"><span class="brand-icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/></svg></span><span><strong>Inventory Sales</strong><small>Quản lý cửa hàng</small></span></a>
+        <button class="primary-button header-create" type="button" data-go="sell"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> Tạo đơn</button>
       </header>
 
       <main>
-        <section class="summary-grid" aria-label="Tổng quan">
-          <article>
-            <span>Doanh thu hôm nay</span>
-            <strong id="todayRevenue">0 đ</strong>
-          </article>
-          <article>
-            <span>Số đơn hôm nay</span>
-            <strong id="todayOrders">0</strong>
-          </article>
-          <article>
-            <span>Sản phẩm hôm nay</span>
-            <strong id="todayItems">0</strong>
-          </article>
+        <section class="tab-panel active dashboard" id="overview">
+          <div class="panel-heading">
+            <h1>Tổng quan</h1>
+            <p id="overviewDate"></p>
+          </div>
+          <section class="summary-grid" aria-label="Kết quả bán hàng hôm nay">
+            <article class="revenue-summary">
+              <span>Doanh thu hôm nay</span>
+              <strong id="todayRevenue">0 đ</strong>
+            </article>
+            <article>
+              <span>Đơn hàng</span>
+              <strong id="todayOrders">0</strong>
+            </article>
+            <article>
+              <span>Sản phẩm đã bán</span>
+              <strong id="todayItems">0</strong>
+            </article>
+          </section>
+          <h2>Thao tác nhanh</h2>
+          <div class="quick-actions">
+            <button type="button" data-go="sell"><span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>Tạo đơn</button>
+            <button type="button" data-go="products"><span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/></svg></span>Sản phẩm</button>
+            <button type="button" data-go="purchase"><span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h16v10H4zM12 3v12m-4-4 4 4 4-4"/></svg></span>Nhập hàng</button>
+            <button type="button" data-go="reports"><span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M7 16v-4m5 4V8m5 8V4"/></svg></span>Báo cáo</button>
+          </div>
+          <div class="section-heading"><h2>Đơn hàng gần đây</h2><button class="text-button" type="button" data-go="history">Xem tất cả</button></div>
+          <div class="list compact" id="recentSales"></div>
         </section>
 
-        <nav class="tabs" aria-label="Chức năng">
-          <button class="tab-button active" type="button" data-tab="sell">Bán hàng</button>
-          <button class="tab-button" type="button" data-tab="purchase">Nhập hàng</button>
-          <button class="tab-button" type="button" data-tab="reports">Báo cáo</button>
-          <button class="tab-button" type="button" data-tab="history">Lịch sử</button>
-        </nav>
+        <section class="tab-panel" id="products">
+          <div class="panel-heading section-heading">
+            <div><h1>Sản phẩm</h1><p>Đặt giá cho khách Việt Nam và khách nước ngoài.</p></div>
+            <button class="primary-button" id="addProduct" type="button">+ Thêm</button>
+          </div>
+          <form class="product-form hidden" id="productForm">
+            <h2 id="productFormTitle">Thêm sản phẩm</h2>
+            <label>Tên sản phẩm<input id="productName" type="text" required /></label>
+            <div class="price-fields">
+              <label>Giá khách Việt Nam (đ)<input id="vietnamesePrice" type="number" inputmode="numeric" min="0" step="1" required /></label>
+              <label>Giá khách nước ngoài (đ)<input id="internationalPrice" type="number" inputmode="numeric" min="0" step="1" required /></label>
+            </div>
+            <div class="item-actions">
+              <button class="primary-button" type="submit">Lưu sản phẩm</button>
+              <button class="ghost-button" id="cancelProduct" type="button">Hủy</button>
+            </div>
+          </form>
+          <p class="form-status" id="productStatus" role="status"></p>
+          <label class="search-field">Tìm sản phẩm<input id="productSearch" type="search" placeholder="Nhập tên sản phẩm" /></label>
+          <div class="list" id="productList"></div>
+        </section>
+
+        <section class="tab-panel" id="more">
+          <div class="panel-heading"><h1>Thêm</h1><p>Quản lý nhập hàng và dữ liệu trên thiết bị.</p></div>
+          <div class="utility-list">
+            <button class="ghost-button" type="button" data-go="purchase">Nhập hàng</button>
+            <button class="ghost-button" id="exportBtn" type="button">Xuất dữ liệu</button>
+            <button class="ghost-button" id="importBtn" type="button">Nhập dữ liệu sao lưu</button>
+            <input class="hidden" id="importFile" type="file" accept="application/json,.json" />
+          </div>
+          <p class="form-status" id="importStatus" role="status"></p>
+        </section>
 
         <!-- TAB: BÁN HÀNG -->
-        <section class="tab-panel active" id="sell">
+        <section class="tab-panel" id="sell">
           <div class="panel-heading">
-            <h2>Tạo đơn bán</h2>
-            <p>Nhập sản phẩm, giá, số lượng và lưu đơn.</p>
+            <h1 id="saleHeading">Tạo đơn bán</h1>
+            <p id="saleDescription">Chọn sản phẩm và mức giá cho từng dòng.</p>
           </div>
 
           <form id="saleForm">
             <div class="order-items" id="orderItems"></div>
-            <button class="ghost-button add-item-button" id="addOrderItem" type="button">Thêm sản phẩm</button>
+            <button class="ghost-button add-item-button" id="addOrderItem" type="button">+ Thêm dòng sản phẩm</button>
 
             <label>
               Thanh toán
@@ -72,17 +106,21 @@
               Ngày giờ bán
               <input id="saleDateTime" type="datetime-local" required />
             </label>
-            <button class="primary-button" id="saleSubmit" type="submit">Lưu đơn bán</button>
-            <button class="ghost-button hidden" id="cancelSaleEdit" type="button">Hủy sửa</button>
+            <div class="checkout-bar">
+              <div class="notice" id="salePreview" role="status"></div>
+              <div class="checkout-actions">
+                <button class="ghost-button hidden" id="cancelSaleEdit" type="button">Hủy sửa</button>
+                <button class="primary-button" id="saleSubmit" type="submit">Lưu đơn bán</button>
+              </div>
+            </div>
           </form>
 
-          <div class="notice" id="salePreview">Nhập sản phẩm để tạo đơn.</div>
         </section>
 
         <!-- TAB: NHẬP HÀNG -->
         <section class="tab-panel" id="purchase">
           <div class="panel-heading">
-            <h2>Ghi nhận nhập hàng</h2>
+            <h1>Ghi nhận nhập hàng</h1>
             <p>Nhập tổng tiền vốn mỗi lần nhập hàng để tính lợi nhuận.</p>
           </div>
 
@@ -112,7 +150,7 @@
         <!-- TAB: BÁO CÁO -->
         <section class="tab-panel" id="reports">
           <div class="panel-heading">
-            <h2>Báo cáo doanh thu</h2>
+            <h1>Báo cáo doanh thu</h1>
             <p>Xem nhanh doanh thu theo ngày, tháng hoặc năm.</p>
           </div>
 
@@ -221,12 +259,19 @@
         <!-- TAB: LỊCH SỬ BÁN HÀNG -->
         <section class="tab-panel" id="history">
           <div class="panel-heading">
-            <h2>Lịch sử bán hàng</h2>
+            <h1>Đơn hàng</h1>
             <p>Các đơn mới nhất được lưu trên thiết bị này.</p>
           </div>
           <div class="list" id="saleHistory"></div>
         </section>
       </main>
+      <nav class="tabs" aria-label="Điều hướng chính">
+        <button class="tab-button active" type="button" data-tab="overview" aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7v10H3z M9 20v-7h6v7"/></svg><span>Tổng quan</span></button>
+        <button class="tab-button" type="button" data-tab="history"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 9h6m-6 4h6m-6 4h4"/></svg><span>Đơn hàng</span></button>
+        <button class="tab-button" type="button" data-tab="products"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/></svg><span>Sản phẩm</span></button>
+        <button class="tab-button" type="button" data-tab="reports"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M7 16v-4m5 4V8m5 8V4"/></svg><span>Báo cáo</span></button>
+        <button class="tab-button" type="button" data-tab="more"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg><span>Thêm</span></button>
+      </nav>
     </div>
 
     <script src="app.js"></script>
