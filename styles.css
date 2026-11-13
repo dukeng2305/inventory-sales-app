@@ -785,3 +785,13 @@ input[readonly] { background: #edf2f9; }
 .dashboard .quick-actions button > span { color: white; background: #086bd7; }
 .dashboard .quick-actions button:nth-child(3) > span { background: #7546c8; }
 .dashboard .quick-actions button:nth-child(4) > span { background: #087e65; }
+
+.product-item {
+  width: 100%;
+  grid-template-columns: 1fr;
+  text-align: left;
+  color: var(--ink);
+}
+.product-item .item-title, .product-item .item-meta { display: block; }
+.product-item:hover { border-color: var(--primary); }
+.product-item:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }

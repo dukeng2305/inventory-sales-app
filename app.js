@@ -564,17 +564,16 @@ function renderProducts() {
   const query = normalizeText(el.productSearch.value);
   const products = forActiveBranch(state.products).filter((product) => normalizeText(product.name).includes(query));
   el.productList.innerHTML = products.length ? products.map((product) => `
-    <article class="list-item product-item">
-      <div>
-        <p class="item-title">${escapeHtml(product.name)}</p>
-        <p class="item-meta">Tồn kho: <strong>${product.stock == null ? "Chưa cập nhật" : product.stock.toLocaleString("vi-VN")}</strong></p>
-        <div class="product-prices">
+    <button class="list-item product-item" type="button" data-edit-product="${escapeAttribute(product.id)}" aria-label="Sửa ${escapeAttribute(product.name)}">
+      <span>
+        <span class="item-title">${escapeHtml(product.name)}</span>
+        <span class="item-meta">Tồn kho: <strong>${product.stock == null ? "Chưa cập nhật" : product.stock.toLocaleString("vi-VN")}</strong></span>
+        <span class="product-prices">
           <span>Khách Việt Nam <strong>${formatMoney(product.vietnamesePrice)}</strong></span>
           <span>Khách nước ngoài <strong>${formatMoney(product.internationalPrice)}</strong></span>
-        </div>
-      </div>
-      <button class="small-button" type="button" data-edit-product="${escapeAttribute(product.id)}">Sửa</button>
-    </article>
+        </span>
+      </span>
+    </button>
   `).join("") : `<div class="empty">${query ? "Không tìm thấy sản phẩm." : "Chưa có sản phẩm. Chọn + Thêm để tạo sản phẩm và đặt giá."}</div>`;
 }
 
