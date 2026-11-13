@@ -415,8 +415,17 @@ function branchId(value) {
   return value === "ha-noi" ? value : DEFAULT_BRANCH;
 }
 
+function recordBranch(record) {
+  if (Object.hasOwn(BRANCH_LABELS, record.branchId)) return record.branchId;
+  if (typeof record.id === "string" &&
+      (record.id.startsWith("sapo-order-") || record.id.startsWith("sapo-product-"))) {
+    return "ninh-binh";
+  }
+  return "ha-noi";
+}
+
 function forActiveBranch(records) {
-  return records.filter((record) => branchId(record.branchId) === activeBranch);
+  return records.filter((record) => recordBranch(record) === activeBranch);
 }
 
 function validPrice(value) {
@@ -434,7 +443,7 @@ function readProducts(products) {
     const vietnamesePrice = product.vietnamesePrice ?? product.retailPrice;
     const internationalPrice = product.internationalPrice ?? product.wholesalePrice;
     if (validPrice(vietnamesePrice) && validPrice(internationalPrice)) {
-      result.push({ id: product.id, branchId: branchId(product.branchId), name: product.name, vietnamesePrice, internationalPrice });
+      result.push({ id: product.id, branchId: recordBranch(product), name: product.name, vietnamesePrice, internationalPrice });
     }
   }
   return result;

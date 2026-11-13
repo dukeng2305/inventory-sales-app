@@ -1,5 +1,5 @@
 const CACHE_PREFIX = `inventory-sales-app:${self.registration.scope}:`;
-const CACHE_NAME = `${CACHE_PREFIX}19`;
+const CACHE_NAME = `${CACHE_PREFIX}20`;
 const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.webmanifest", "./icon.svg", "./apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {
