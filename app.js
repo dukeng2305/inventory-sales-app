@@ -6,7 +6,12 @@ const currency = new Intl.NumberFormat("vi-VN", {
   maximumFractionDigits: 0,
 });
 
+const DEFAULT_BRANCH = "ninh-binh";
+const BRANCH_LABELS = { "ninh-binh": "Ninh Bình", "ha-noi": "Hà Nội" };
+const BRANCH_KEY = "inventory-sales-active-branch";
+
 const state = loadState();
+let activeBranch = branchId(localStorage.getItem(BRANCH_KEY));
 let reportRange = "day";
 let editingSaleId = "";
 let editingPurchaseId = "";
@@ -14,6 +19,7 @@ let editingProductId = "";
 let selectedReportPayment = "";
 
 const el = {
+  branchSelect: document.querySelector("#branchSelect"),
   overviewDate: document.querySelector("#overviewDate"),
   recentSales: document.querySelector("#recentSales"),
   saleHeading: document.querySelector("#saleHeading"),
@@ -107,11 +113,33 @@ el.productForm.addEventListener("submit", (event) => {
   }
   const product = state.products.find((entry) => entry.id === editingProductId);
   if (product) Object.assign(product, { name, vietnamesePrice, internationalPrice });
-  else state.products.unshift({ id: crypto.randomUUID(), name, vietnamesePrice, internationalPrice });
+  else state.products.unshift({ id: crypto.randomUUID(), branchId: activeBranch, name, vietnamesePrice, internationalPrice });
   saveState();
   closeProductForm();
   renderProducts();
   el.productStatus.textContent = product ? "Đã cập nhật sản phẩm." : "Đã thêm sản phẩm.";
+});
+
+el.branchSelect.value = activeBranch;
+el.branchSelect.addEventListener("change", () => {
+  const nextBranch = branchId(el.branchSelect.value);
+  const hasSaleDraft = [...el.orderItems.querySelectorAll('[data-field="name"], [data-field="price"]')].some((input) => input.value) ||
+    el.orderItems.querySelector('[data-field="product"] option:checked:not([value=""])') ||
+    editingSaleId;
+  const hasPurchaseDraft = editingPurchaseId || el.purchaseAmount.value || el.purchaseNote.value;
+  if ((hasSaleDraft || hasPurchaseDraft || !el.productForm.classList.contains("hidden")) &&
+      !confirm("Đổi chi nhánh sẽ bỏ nội dung chưa lưu. Bạn có muốn tiếp tục?")) {
+    el.branchSelect.value = activeBranch;
+    return;
+  }
+  activeBranch = nextBranch;
+  localStorage.setItem(BRANCH_KEY, activeBranch);
+  selectedReportPayment = "";
+  resetSaleForm();
+  resetPurchaseForm();
+  closeProductForm();
+  el.importStatus.textContent = "";
+  render();
 });
 
 // ─── Report range buttons ───────────────────────────────────────────────────
@@ -215,6 +243,7 @@ el.saleForm.addEventListener("submit", (event) => {
 
   state.sales.unshift({
     id: crypto.randomUUID(),
+    branchId: activeBranch,
     ...saleData,
   });
 
@@ -261,6 +290,7 @@ el.purchaseForm.addEventListener("submit", (event) => {
 
   state.purchases.unshift({
     id: crypto.randomUUID(),
+    branchId: activeBranch,
     ...purchaseData,
     createdAt: new Date().toISOString(),
   });
@@ -300,6 +330,10 @@ el.importFile.addEventListener("change", async () => {
     }
 
     if (payload.source === "sapo") {
+      if (payload.branchId != null && !Object.hasOwn(BRANCH_LABELS, payload.branchId)) {
+        alert("Chi nhánh trong file Sapo không hợp lệ.");
+        return;
+      }
       const products = readProducts(payload.products);
       if (!Array.isArray(payload.products) || products.length !== payload.products.length ||
           new Set(products.map((product) => product.id)).size !== products.length ||
@@ -313,20 +347,32 @@ el.importFile.addEventListener("change", async () => {
         alert("File dữ liệu Sapo không hợp lệ.");
         return;
       }
-      const newProducts = products.filter((product) => !state.products.some((saved) => saved.id === product.id));
-      const newSales = payload.sales.filter((sale) => !state.sales.some((saved) => saved.id === sale.id));
+      const importBranch = branchId(payload.branchId);
+      const branchLabel = BRANCH_LABELS[importBranch];
+      const qualifyId = (id) => importBranch === DEFAULT_BRANCH ? id : `${importBranch}:${id}`;
+      const importedProducts = products.map((product) => ({
+        ...product, id: qualifyId(product.id), branchId: importBranch,
+      }));
+      const importedSales = payload.sales.map((sale) => ({
+        ...sale,
+        id: qualifyId(sale.id),
+        branchId: importBranch,
+        items: sale.items.map((item) => item.productId ? { ...item, productId: qualifyId(item.productId) } : item),
+      }));
+      const newProducts = importedProducts.filter((product) => !state.products.some((saved) => saved.id === product.id));
+      const newSales = importedSales.filter((sale) => !state.sales.some((saved) => saved.id === sale.id));
       if (!newProducts.length && !newSales.length) {
         el.importStatus.textContent = "Dữ liệu Sapo trong file này đã được nhập.";
         return;
       }
-      if (!confirm(`Thêm ${newProducts.length} sản phẩm và ${newSales.length} đơn từ Sapo vào dữ liệu hiện tại?`)) return;
+      if (!confirm(`Thêm ${newProducts.length} sản phẩm và ${newSales.length} đơn từ Sapo vào chi nhánh ${branchLabel}?`)) return;
       state.products.push(...newProducts);
       state.sales = [...state.sales, ...newSales].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       saveState();
       resetSaleForm();
       closeProductForm();
       render();
-      el.importStatus.textContent = `Đã thêm ${newProducts.length} sản phẩm và ${newSales.length} đơn từ Sapo.`;
+      el.importStatus.textContent = `Đã thêm ${newProducts.length} sản phẩm và ${newSales.length} đơn từ Sapo vào chi nhánh ${branchLabel}.`;
       return;
     }
 
@@ -365,6 +411,14 @@ function loadState() {
   return { sales: [], purchases: [], products: [] };
 }
 
+function branchId(value) {
+  return value === "ha-noi" ? value : DEFAULT_BRANCH;
+}
+
+function forActiveBranch(records) {
+  return records.filter((record) => branchId(record.branchId) === activeBranch);
+}
+
 function validPrice(value) {
   return Number.isSafeInteger(value) && value >= 0;
 }
@@ -380,7 +434,7 @@ function readProducts(products) {
     const vietnamesePrice = product.vietnamesePrice ?? product.retailPrice;
     const internationalPrice = product.internationalPrice ?? product.wholesalePrice;
     if (validPrice(vietnamesePrice) && validPrice(internationalPrice)) {
-      result.push({ id: product.id, name: product.name, vietnamesePrice, internationalPrice });
+      result.push({ id: product.id, branchId: branchId(product.branchId), name: product.name, vietnamesePrice, internationalPrice });
     }
   }
   return result;
@@ -434,7 +488,7 @@ function closeProductForm() {
 
 function renderProducts() {
   const query = normalizeText(el.productSearch.value);
-  const products = state.products.filter((product) => normalizeText(product.name).includes(query));
+  const products = forActiveBranch(state.products).filter((product) => normalizeText(product.name).includes(query));
   el.productList.innerHTML = products.length ? products.map((product) => `
     <article class="list-item product-item">
       <div>
@@ -473,7 +527,7 @@ function getSaleDateTimeIso() {
 }
 
 function productOptions(selected = "") {
-  return '<option value="">Nhập sản phẩm thủ công</option>' + state.products.map((product) =>
+  return '<option value="">Nhập sản phẩm thủ công</option>' + forActiveBranch(state.products).map((product) =>
     `<option value="${escapeAttribute(product.id)}"${product.id === selected ? " selected" : ""}>${escapeHtml(product.name)}</option>`
   ).join("");
 }
@@ -596,7 +650,7 @@ function renderSummary() {
   const today = new Date();
   const todaySales = salesInDateRange(startOfDay(today), endOfDay(today));
   el.overviewDate.textContent = new Intl.DateTimeFormat("vi-VN", { dateStyle: "full" }).format(today);
-  el.recentSales.innerHTML = state.sales.slice(0, 3).map((sale) => `
+  el.recentSales.innerHTML = forActiveBranch(state.sales).slice(0, 3).map((sale) => `
     <article class="list-item recent-sale">
       <div><p class="item-title">${escapeHtml(saleTitle(saleItems(sale)))}</p>
       <p class="item-meta">${formatDateTime(sale.createdAt)} · ${paymentMethodLabel(sale.paymentMethod)}</p></div>
@@ -717,12 +771,13 @@ function renderReportPaymentOrders(rangeSales, label) {
 }
 
 function renderHistory() {
-  if (state.sales.length === 0) {
+  const sales = forActiveBranch(state.sales);
+  if (!sales.length) {
     el.saleHistory.innerHTML = `<div class="empty">Chưa có đơn bán nào.</div>`;
     return;
   }
 
-  el.saleHistory.innerHTML = state.sales
+  el.saleHistory.innerHTML = sales
     .map((sale) => {
       const method = ["cash", "transfer", "unknown"].includes(sale.paymentMethod) ? sale.paymentMethod : "cash";
       const items = saleItems(sale);
@@ -752,12 +807,13 @@ function renderHistory() {
 }
 
 function renderPurchaseHistory() {
-  if (state.purchases.length === 0) {
+  const purchases = forActiveBranch(state.purchases);
+  if (!purchases.length) {
     el.purchaseHistory.innerHTML = `<div class="empty">Chưa có lần nhập hàng nào.</div>`;
     return;
   }
 
-  el.purchaseHistory.innerHTML = state.purchases
+  el.purchaseHistory.innerHTML = purchases
     .slice(0, 50)
     .map((purchase) => `
       <article class="list-item purchase-item">
@@ -850,7 +906,7 @@ function deletePurchase(id) {
 // ─── Date range helpers ───────────────────────────────────────────────────────
 
 function salesInDateRange(startDate, endDate) {
-  return state.sales.filter((sale) => {
+  return forActiveBranch(state.sales).filter((sale) => {
     const date = new Date(sale.createdAt);
     return date >= startDate && date <= endDate;
   });
@@ -864,7 +920,7 @@ function salesInShift(sales, shift) {
 }
 
 function purchasesInDateRange(startDate, endDate) {
-  return state.purchases.filter((purchase) => {
+  return forActiveBranch(state.purchases).filter((purchase) => {
     // purchases use a date string (YYYY-MM-DD), compare as start of that day
     const date = parseDateInput(purchase.date);
     return date >= startOfDay(startDate) && date <= endOfDay(endDate);
