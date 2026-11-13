@@ -926,3 +926,6 @@ body.picker-open { overflow: hidden; }
 .discount-error { color: var(--danger); margin: 10px 0 0; font-size: .85rem; }
 .discount-error:empty { display: none; }
 .primary-button:disabled { opacity: .5; cursor: default; }
+
+.cancelled-sale { opacity: .7; border-left-color: #8390a4 !important; }
+.cancelled-label { color: var(--danger); font-weight: 700; align-self: center; }

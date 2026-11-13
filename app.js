@@ -313,25 +313,23 @@ el.saleForm.addEventListener("submit", (event) => {
     createdAt: saleDateTime,
   };
 
-  if (editingSale) {
-    Object.assign(editingSale, saleData);
-    saveState();
-    resetSaleForm();
-    render();
-    showSaleMessage(`Đã cập nhật đơn: ${formatMoney(total)} · ${paymentMethodLabel(paymentMethod)}.`);
+  const nextSale = editingSale
+    ? { ...editingSale, ...saleData, status: "paid" }
+    : { id: crypto.randomUUID(), branchId: activeBranch, ...saleData, status: "paid" };
+  try {
+    commitSaleStock(editingSale, nextSale);
+  } catch (error) {
+    showSaleMessage("Không thể lưu đơn và tồn kho. Vui lòng thử lại.");
     return;
   }
-
-  state.sales.unshift({
-    id: crypto.randomUUID(),
-    branchId: activeBranch,
-    ...saleData,
-  });
-
-  saveState();
+  const unknownCount = items.filter((item) => !item.productId ||
+    !Number.isSafeInteger(state.products.find((product) =>
+      product.id === item.productId && recordBranch(product) === activeBranch)?.stock)).length;
   resetSaleForm();
   render();
-  showSaleMessage(`Đã lưu đơn: ${formatMoney(total)} · ${paymentMethodLabel(paymentMethod)}.`);
+  showSaleMessage(`Đã ${editingSale ? "cập nhật" : "thanh toán"} đơn: ${formatMoney(total)}.${
+    unknownCount ? ` ${unknownCount} dòng chưa có sản phẩm hoặc số tồn để tự động cập nhật kho.` : ""}`);
+
 });
 
 // ─── Purchase form ──────────────────────────────────────────────────────────
@@ -639,7 +637,7 @@ function resetSaleForm() {
   el.saleDateTime.value = formatDateTimeInput(new Date());
   el.saleHeading.textContent = "POS · Tạo đơn";
   el.saleDescription.textContent = "Chọn sản phẩm và mức giá cho từng dòng.";
-  el.saleSubmit.textContent = "Lưu đơn bán";
+  el.saleSubmit.textContent = "Thanh toán và lưu đơn";
   el.cancelSaleEdit.classList.add("hidden");
   renderOrderItems([]);
   updateSalePreview();
@@ -865,7 +863,7 @@ function render() {
 }
 
 function renderSummary() {
-  el.recentSales.innerHTML = forActiveBranch(state.sales).slice(0, 3).map((sale) => `
+  el.recentSales.innerHTML = forActiveBranch(state.sales).filter((sale) => sale.status !== "cancelled").slice(0, 3).map((sale) => `
     <article class="list-item recent-sale">
       <div><p class="item-title">${escapeHtml(saleTitle(saleItems(sale)))}</p>
       <p class="item-meta">${formatDateTime(sale.createdAt)} · ${paymentMethodLabel(sale.paymentMethod)}</p></div>
@@ -902,6 +900,7 @@ function renderOverviewChart() {
   const prior = Array(count).fill(0);
   const sales = [];
   for (const sale of forActiveBranch(state.sales)) {
+    if (sale.status === "cancelled") continue;
     const date = new Date(sale.createdAt);
     if (date >= start && date < end) {
       sales.push(sale);
@@ -1097,7 +1096,7 @@ function renderHistory() {
       const method = ["cash", "transfer", "unknown"].includes(sale.paymentMethod) ? sale.paymentMethod : "cash";
       const items = saleItems(sale);
       return `
-      <article class="list-item sale-item ${method}">
+      <article class="list-item sale-item ${method}${sale.status === "cancelled" ? " cancelled-sale" : ""}">
         <div>
           <p class="item-title">${sale.sapoOrderNumber ? escapeHtml(sale.sapoOrderNumber) + " · " : ""}${escapeHtml(saleTitle(items))}</p>
           <p class="item-meta">${formatDateTime(sale.createdAt)} · ${formatMoney(sale.total)} · ${paymentMethodLabel(method)}</p>
@@ -1105,8 +1104,10 @@ function renderHistory() {
           ${sale.discountAmount > 0 ? `<p class="item-meta">Giảm giá ${sale.discountType === "percent" ? escapeHtml(sale.discountValue) + "% · " : ""}${formatMoney(sale.discountAmount)}</p>` : ""}
         </div>
         <div class="item-actions">
-          <button class="small-button" type="button" data-edit-sale="${escapeAttribute(sale.id)}">Sửa</button>
-          <button class="danger-button" type="button" data-delete-sale="${escapeAttribute(sale.id)}">Xóa</button>
+          ${sale.status === "cancelled"
+            ? `<span class="cancelled-label">Đã hủy</span><button class="danger-button" type="button" data-delete-sale="${escapeAttribute(sale.id)}">Xóa</button>`
+            : `<button class="small-button" type="button" data-edit-sale="${escapeAttribute(sale.id)}">Sửa</button>
+               <button class="danger-button" type="button" data-cancel-sale="${escapeAttribute(sale.id)}">Hủy đơn</button>`}
         </div>
       </article>
     `;
@@ -1117,6 +1118,9 @@ function renderHistory() {
     button.addEventListener("click", () => editSale(button.dataset.editSale));
   });
 
+  el.saleHistory.querySelectorAll("[data-cancel-sale]").forEach((button) => {
+    button.addEventListener("click", () => cancelSale(button.dataset.cancelSale));
+  });
   el.saleHistory.querySelectorAll("[data-delete-sale]").forEach((button) => {
     button.addEventListener("click", () => deleteSale(button.dataset.deleteSale));
   });
@@ -1158,7 +1162,7 @@ function renderPurchaseHistory() {
 
 function editSale(id) {
   const sale = state.sales.find((item) => item.id === id);
-  if (!sale) return;
+  if (!sale || sale.status === "cancelled") return;
 
   editingSaleId = sale.id;
   renderOrderItems(saleItems(sale).map((item) => ({ ...item, saved: true })));
@@ -1175,6 +1179,58 @@ function editSale(id) {
   el.orderItems.querySelector('[data-field="qty"]').focus();
 }
 
+function saleStockQuantities(sale) {
+  const quantities = {};
+  if (!sale || sale.status === "cancelled") return quantities;
+  for (const item of saleItems(sale)) {
+    const product = state.products.find((entry) => entry.id === item.productId &&
+      recordBranch(entry) === recordBranch(sale));
+    if (!product || !Number.isSafeInteger(product.stock)) continue;
+    quantities[product.id] = (quantities[product.id] || 0) + item.qty;
+  }
+  return quantities;
+}
+
+function commitSaleStock(previous, nextSale) {
+  // Older sales are already reflected in the imported/current inventory snapshot.
+  const before = previous?.status === "cancelled" ? {}
+    : previous?.stockQuantities ?? saleStockQuantities(previous);
+  const after = saleStockQuantities(nextSale);
+  const targetBranch = recordBranch(nextSale || previous);
+  const products = state.products.map((product) => {
+    if (recordBranch(product) !== targetBranch || !Number.isSafeInteger(product.stock)) return product;
+    const difference = (after[product.id] || 0) - (before[product.id] || 0);
+    const stock = product.stock - difference;
+    if (!Number.isSafeInteger(stock)) throw new Error("Invalid stock quantity");
+    return difference ? { ...product, stock } : product;
+  });
+  const updated = nextSale ? { ...nextSale, stockQuantities: after } : null;
+  const sales = previous
+    ? state.sales.flatMap((sale) => sale.id === previous.id ? updated ? [updated] : [] : [sale])
+    : [updated, ...state.sales];
+  const nextState = { ...state, products, sales };
+  // Persist order and stock together before changing the in-memory state.
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+  Object.assign(state, nextState);
+}
+
+function cancelSale(id) {
+  const sale = state.sales.find((item) => item.id === id);
+  if (!sale || sale.status === "cancelled") return;
+  const quantities = sale.stockQuantities ?? saleStockQuantities(sale);
+  const untracked = saleItems(sale).filter((item) => !quantities[item.productId]).length;
+  const note = untracked ? ` ${untracked} dòng chưa ghi nhận tồn kho để tự động hoàn.` : "";
+  if (!confirm(`Hủy đơn "${saleTitle(saleItems(sale))}" và hoàn lại tồn kho đã ghi nhận?${note}`)) return;
+  try {
+    commitSaleStock(sale, { ...sale, status: "cancelled", cancelledAt: new Date().toISOString() });
+  } catch (error) {
+    alert("Không thể hủy đơn và cập nhật tồn kho. Vui lòng thử lại.");
+    return;
+  }
+  if (editingSaleId === id) resetSaleForm();
+  render();
+}
+
 function deleteSale(id) {
   const sale = state.sales.find((item) => item.id === id);
   if (!sale) return;
@@ -1182,11 +1238,15 @@ function deleteSale(id) {
   const ok = confirm(`Xóa đơn "${saleTitle(saleItems(sale))}"?`);
   if (!ok) return;
 
-  state.sales = state.sales.filter((item) => item.id !== id);
+  try {
+    commitSaleStock(sale, null);
+  } catch (error) {
+    alert("Không thể xóa đơn và cập nhật tồn kho. Vui lòng thử lại.");
+    return;
+  }
   if (editingSaleId === id) {
     resetSaleForm();
   }
-  saveState();
   render();
 }
 
@@ -1226,7 +1286,7 @@ function deletePurchase(id) {
 function salesInDateRange(startDate, endDate) {
   return forActiveBranch(state.sales).filter((sale) => {
     const date = new Date(sale.createdAt);
-    return date >= startDate && date <= endDate;
+    return sale.status !== "cancelled" && date >= startDate && date <= endDate;
   });
 }
 
