@@ -729,3 +729,59 @@ input[readonly] { background: #edf2f9; }
 @media (max-width: 360px) {
   .payment-summary, .report-date-range { grid-template-columns: 1fr; }
 }
+
+.dashboard {
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 12px;
+}
+.dashboard h1 { margin-bottom: 12px; }
+.overview-period {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  padding: 3px;
+  background: #eef2f7;
+  border-radius: 11px;
+  margin-bottom: 14px;
+}
+.overview-period button {
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 8px;
+}
+.overview-period button[aria-pressed="true"] {
+  background: white;
+  color: var(--ink);
+  font-weight: 700;
+  box-shadow: 0 1px 4px #16294424;
+}
+.dashboard .summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin-bottom: 12px; }
+.dashboard .summary-grid article:not(.revenue-summary) {
+  padding: 10px 7px;
+  background: #f3f5f8;
+  box-shadow: none;
+  font-size: .78rem;
+}
+.dashboard .summary-grid article:not(.revenue-summary) strong {
+  font-size: clamp(.82rem, 3.5vw, 1.15rem);
+  overflow-wrap: anywhere;
+}
+.dashboard .revenue-summary { padding: 14px; background: linear-gradient(120deg, #085bb8, #0876df); }
+.dashboard .revenue-summary .section-heading { margin-bottom: 5px; font-weight: 700; }
+#overviewDetails { color: white; border: 0; background: transparent; min-height: 34px; }
+#overviewDate { font-size: .8rem; }
+.revenue-value { display: flex; align-items: end; justify-content: space-between; gap: 8px; }
+.revenue-value small { font-size: .72rem; padding-bottom: 4px; }
+.revenue-value strong { text-align: right; overflow-wrap: anywhere; }
+.revenue-chart { margin: 0 0 18px; border-bottom: 1px solid var(--line); padding-bottom: 12px; }
+.revenue-chart figcaption { display: flex; justify-content: flex-end; gap: 12px; color: var(--muted); font-size: .75rem; }
+.revenue-chart i { display: inline-block; width: 15px; border-top: 2px solid #0873dc; vertical-align: middle; }
+.revenue-chart span + span i { border-top: 2px dashed #b86a13; }
+#revenueChart { display: block; width: 100%; height: 185px; }
+#chartCaption { margin: 5px 0 0; text-align: right; color: var(--muted); font-size: .75rem; }
+.dashboard .quick-actions button > span { color: white; background: #086bd7; }
+.dashboard .quick-actions button:nth-child(3) > span { background: #7546c8; }
+.dashboard .quick-actions button:nth-child(4) > span { background: #087e65; }

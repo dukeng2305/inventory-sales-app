@@ -13,6 +13,7 @@ const BRANCH_KEY = "inventory-sales-active-branch";
 const state = loadState();
 let activeBranch = branchId(localStorage.getItem(BRANCH_KEY));
 let reportRange = "day";
+let overviewPeriod = "day";
 let editingSaleId = "";
 let editingPurchaseId = "";
 let editingProductId = "";
@@ -85,6 +86,24 @@ const el = {
 
 document.querySelectorAll(".tab-button").forEach((button) => {
   button.addEventListener("click", () => switchTab(button.dataset.tab));
+});
+
+document.querySelectorAll("[data-overview-period]").forEach((button) => {
+  button.addEventListener("click", () => {
+    overviewPeriod = button.dataset.overviewPeriod;
+    document.querySelectorAll("[data-overview-period]").forEach((control) =>
+      control.setAttribute("aria-pressed", String(control === button)));
+    renderOverviewChart();
+  });
+});
+window.addEventListener("resize", renderOverviewChart);
+document.querySelector("#overviewDetails").addEventListener("click", () => {
+  const { start, end } = overviewDates(new Date(), overviewPeriod);
+  el.reportStartDate.value = formatDateInput(start);
+  el.reportEndDate.value = formatDateInput(new Date(end - 1));
+  document.querySelectorAll(".range-button").forEach((button) => button.classList.remove("active"));
+  switchTab("reports");
+  renderReports();
 });
 
 document.querySelectorAll("[data-go]").forEach((control) => {
@@ -474,6 +493,7 @@ function switchTab(tabName) {
     });
     if (collectOrderItems().length) updateSalePreview();
   }
+  if (tabName === "overview") renderOverviewChart();
   window.scrollTo(0, 0);
 }
 
@@ -656,9 +676,6 @@ function render() {
 }
 
 function renderSummary() {
-  const today = new Date();
-  const todaySales = salesInDateRange(startOfDay(today), endOfDay(today));
-  el.overviewDate.textContent = new Intl.DateTimeFormat("vi-VN", { dateStyle: "full" }).format(today);
   el.recentSales.innerHTML = forActiveBranch(state.sales).slice(0, 3).map((sale) => `
     <article class="list-item recent-sale">
       <div><p class="item-title">${escapeHtml(saleTitle(saleItems(sale)))}</p>
@@ -666,9 +683,108 @@ function renderSummary() {
       <strong>${formatMoney(sale.total)}</strong>
     </article>
   `).join("") || '<div class="empty">Chưa có đơn hàng. Tạo đơn để bắt đầu bán hàng.</div>';
-  el.todayRevenue.textContent = formatMoney(sumRevenue(todaySales));
-  el.todayOrders.textContent = todaySales.length;
-  el.todayItems.textContent = todaySales.reduce((total, sale) => total + sumOrderQty(saleItems(sale)), 0);
+  renderOverviewChart();
+}
+
+function overviewDates(now, period) {
+  const day = startOfDay(now);
+  const offsetDay = (date, count) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + count);
+  if (period === "week") {
+    const start = offsetDay(day, -((day.getDay() + 6) % 7));
+    return { start, end: offsetDay(start, 7), previous: offsetDay(start, -7), count: 7 };
+  }
+  if (period === "month") {
+    const year = day.getFullYear();
+    const month = day.getMonth();
+    return { start: new Date(year, month, 1), end: new Date(year, month + 1, 1),
+      previous: new Date(year, month - 1, 1),
+      count: Math.max(new Date(year, month + 1, 0).getDate(), new Date(year, month, 0).getDate()) };
+  }
+  return { start: day, end: offsetDay(day, 1), previous: offsetDay(day, -1), count: 8 };
+}
+
+function renderOverviewChart() {
+  const canvas = document.querySelector("#revenueChart");
+  if (!canvas.clientWidth) return;
+  const { start, end, previous, count } = overviewDates(new Date(), overviewPeriod);
+  const bucket = (date) => overviewPeriod === "day" ? Math.floor(date.getHours() / 3)
+    : overviewPeriod === "week" ? (date.getDay() + 6) % 7 : date.getDate() - 1;
+  const current = Array(count).fill(0);
+  const prior = Array(count).fill(0);
+  const sales = [];
+  for (const sale of forActiveBranch(state.sales)) {
+    const date = new Date(sale.createdAt);
+    if (date >= start && date < end) {
+      sales.push(sale);
+      current[bucket(date)] += Number(sale.total || 0);
+    } else if (date >= previous && date < start) {
+      prior[bucket(date)] += Number(sale.total || 0);
+    }
+  }
+  const total = sumRevenue(sales);
+  const priorTotal = prior.reduce((sum, value) => sum + value, 0);
+  const delta = priorTotal ? ((total - priorTotal) / priorTotal * 100) : null;
+  el.todayRevenue.textContent = formatMoney(total);
+  el.todayOrders.textContent = sales.length;
+  el.todayItems.textContent = sales.reduce((sum, sale) => sum + sumOrderQty(saleItems(sale)), 0);
+  document.querySelector("#averageOrder").textContent = formatMoney(sales.length ? total / sales.length : 0);
+  el.overviewDate.textContent = reportRangeLabel(start, new Date(end - 1));
+  document.querySelector("#revenueChange").textContent = delta === null ? "So với kỳ trước"
+    : `${delta > 0 ? "+" : ""}${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 }).format(delta)}% so với kỳ trước`;
+  const caption = `Kỳ trước: ${formatMoney(priorTotal)} · ${overviewPeriod === "day" ? "Mỗi điểm là 3 giờ" : "Mỗi điểm là 1 ngày"}`;
+  document.querySelector("#chartCaption").textContent = caption;
+  canvas.setAttribute("aria-label", `Doanh thu hiện tại ${formatMoney(total)}. ${caption}`);
+
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = Math.round(width * ratio);
+  canvas.height = Math.round(height * ratio);
+  const ctx = canvas.getContext("2d");
+  ctx.scale(ratio, ratio);
+  const peak = Math.max(1000, ...current, ...prior);
+  const magnitude = 10 ** Math.floor(Math.log10(peak / 4));
+  const step = Math.ceil(peak / 4 / magnitude) * magnitude;
+  const maximum = step * 4;
+  const top = 12, bottom = height - 26, left = 50, right = width - 12;
+  const x = (i) => left + i * (right - left) / (count - 1);
+  const y = (value) => bottom - value * (bottom - top) / maximum;
+  ctx.font = "11px system-ui";
+  ctx.fillStyle = "#53647e";
+  ctx.textAlign = "right";
+  const compact = new Intl.NumberFormat("vi-VN", { notation: "compact", maximumFractionDigits: 1 });
+  for (let i = 0; i <= 4; i++) {
+    const value = step * i;
+    ctx.fillText(compact.format(value), left - 7, y(value) + 4);
+    ctx.strokeStyle = "#dfe7f2";
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(left, y(value));
+    ctx.lineTo(right, y(value));
+    ctx.stroke();
+  }
+  ctx.textAlign = "center";
+  for (let i = 0; i < count; i++) {
+    if (overviewPeriod === "month" && i % 5 !== 0) continue;
+    if (overviewPeriod === "day" && width < 450 && i % 2 !== 0 && i !== count - 1) continue;
+    const label = overviewPeriod === "day" ? `${String(i * 3).padStart(2, "0")}:00`
+      : overviewPeriod === "week" ? ["T2", "T3", "T4", "T5", "T6", "T7", "CN"][i] : String(i + 1);
+    ctx.fillText(label, x(i), height - 7);
+  }
+  for (const [values, color, dash] of [[prior, "#b86a13", [5, 4]], [current, "#0873dc", []]]) {
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 2;
+    ctx.setLineDash(dash);
+    ctx.beginPath();
+    values.forEach((value, index) => index ? ctx.lineTo(x(index), y(value)) : ctx.moveTo(x(index), y(value)));
+    ctx.stroke();
+    if (!dash.length && count < 10) values.forEach((value, index) => {
+      ctx.beginPath();
+      ctx.arc(x(index), y(value), 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
 }
 
 function renderReports() {

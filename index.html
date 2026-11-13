@@ -29,24 +29,27 @@
 
       <main>
         <section class="tab-panel active dashboard" id="overview">
-          <div class="panel-heading">
-            <h1>Tổng quan</h1>
-            <p id="overviewDate"></p>
+          <h1>Tổng quan</h1>
+          <div class="overview-period" role="group" aria-label="Kỳ doanh thu">
+            <button type="button" data-overview-period="day" aria-pressed="true">Hôm nay</button>
+            <button type="button" data-overview-period="week" aria-pressed="false">Tuần này</button>
+            <button type="button" data-overview-period="month" aria-pressed="false">Tháng này</button>
           </div>
-          <section class="summary-grid" aria-label="Kết quả bán hàng hôm nay">
+          <section class="summary-grid" aria-label="Kết quả bán hàng">
             <article class="revenue-summary">
-              <span>Doanh thu hôm nay</span>
-              <strong id="todayRevenue">0 đ</strong>
+              <div class="section-heading"><span>Doanh thu</span><button id="overviewDetails" type="button">Xem chi tiết ›</button></div>
+              <span id="overviewDate"></span>
+              <div class="revenue-value"><small id="revenueChange"></small><strong id="todayRevenue">0 đ</strong></div>
             </article>
-            <article>
-              <span>Đơn hàng</span>
-              <strong id="todayOrders">0</strong>
-            </article>
-            <article>
-              <span>Sản phẩm đã bán</span>
-              <strong id="todayItems">0</strong>
-            </article>
+            <article><span>Tổng đơn</span><strong id="todayOrders">0</strong></article>
+            <article><span>Giá trị đơn TB</span><strong id="averageOrder">0 đ</strong></article>
+            <article><span>Sản phẩm đã bán</span><strong id="todayItems">0</strong></article>
           </section>
+          <figure class="revenue-chart">
+            <figcaption><span><i></i> Hiện tại</span><span><i></i> Kỳ trước</span></figcaption>
+            <canvas id="revenueChart" role="img" aria-label="Biểu đồ doanh thu"></canvas>
+            <p id="chartCaption"></p>
+          </figure>
           <h2>Thao tác nhanh</h2>
           <div class="quick-actions">
             <button type="button" data-go="sell"><span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>Tạo đơn</button>
