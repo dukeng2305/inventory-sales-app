@@ -11,7 +11,7 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-    <link rel="stylesheet" href="styles.css?v=27" />
+    <link rel="stylesheet" href="styles.css?v=28" />
   </head>
   <body>
     <div class="app-shell">
@@ -98,13 +98,16 @@
         <!-- TAB: BÁN HÀNG -->
         <section class="tab-panel" id="sell">
           <div class="panel-heading">
-            <h1 id="saleHeading">Tạo đơn bán</h1>
+            <h1 id="saleHeading">POS · Tạo đơn</h1>
             <p id="saleDescription">Chọn sản phẩm và mức giá cho từng dòng.</p>
           </div>
 
           <form id="saleForm">
+            <div class="pos-section-heading"><h2>Sản phẩm</h2></div>
+            <div class="pos-empty" id="orderEmpty"><span aria-hidden="true">＋</span><p>Đơn hàng chưa có sản phẩm</p></div>
             <div class="order-items" id="orderItems"></div>
-            <button class="ghost-button add-item-button" id="addOrderItem" type="button">+ Thêm dòng sản phẩm</button>
+            <button class="ghost-button add-item-button" id="addOrderItem" type="button">＋ Chọn sản phẩm</button>
+            <button class="text-button manual-item-button" id="addManualItem" type="button">Nhập sản phẩm thủ công</button>
 
             <label>
               Thanh toán
@@ -288,6 +291,26 @@
       </nav>
     </div>
 
-    <script src="app.js?v=27"></script>
+    <dialog class="product-picker" id="productPicker" aria-labelledby="pickerTitle">
+      <header class="picker-heading">
+        <button class="picker-back" id="cancelPicker" type="button" aria-label="Quay lại đơn hàng">‹</button>
+        <div><h2 id="pickerTitle">Chọn sản phẩm</h2><small id="pickerBranch"></small></div>
+        <span class="picker-heading-spacer"></span>
+      </header>
+      <div class="picker-toolbar">
+        <label class="picker-search"><span class="sr-only">Tìm kiếm sản phẩm</span><input id="pickerSearch" type="search" placeholder="Tìm tên, mã SKU hoặc mã vạch" autocomplete="off" /></label>
+        <div class="picker-views" role="group" aria-label="Kiểu hiển thị sản phẩm">
+          <button type="button" data-picker-view="list" aria-label="Danh sách" aria-pressed="true">☰</button>
+          <button type="button" data-picker-view="grid" aria-label="Lưới" aria-pressed="false">▦</button>
+        </div>
+      </div>
+      <div class="picker-info"><span>Giá chọn mới · Khách Việt Nam</span><span id="pickerResultCount" role="status"></span></div>
+      <div class="picker-results" id="pickerResults"></div>
+      <footer class="picker-footer">
+        <div class="picker-total"><span id="pickerSelectedCount" role="status">Chưa chọn sản phẩm</span><strong id="pickerTotal">0 đ</strong></div>
+        <button class="primary-button" id="completePicker" type="button">Hoàn tất</button>
+      </footer>
+    </dialog>
+    <script src="app.js?v=28"></script>
   </body>
 </html>

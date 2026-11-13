@@ -18,8 +18,16 @@ let editingSaleId = "";
 let editingPurchaseId = "";
 let editingProductId = "";
 let selectedReportPayment = "";
+let pickerQuantities = new Map();
+let pickerView = "list";
 
 const el = {
+  productPicker: document.querySelector("#productPicker"),
+  pickerSearch: document.querySelector("#pickerSearch"),
+  pickerResults: document.querySelector("#pickerResults"),
+  pickerSelectedCount: document.querySelector("#pickerSelectedCount"),
+  pickerTotal: document.querySelector("#pickerTotal"),
+  orderEmpty: document.querySelector("#orderEmpty"),
   branchSelect: document.querySelector("#branchSelect"),
   overviewDate: document.querySelector("#overviewDate"),
   recentSales: document.querySelector("#recentSales"),
@@ -149,9 +157,8 @@ el.productForm.addEventListener("submit", (event) => {
 el.branchSelect.value = activeBranch;
 el.branchSelect.addEventListener("change", () => {
   const nextBranch = branchId(el.branchSelect.value);
-  const hasSaleDraft = [...el.orderItems.querySelectorAll('[data-field="name"], [data-field="price"]')].some((input) => input.value) ||
-    el.orderItems.querySelector('[data-field="product"] option:checked:not([value=""])') ||
-    editingSaleId;
+  const hasSaleDraft = [...el.orderItems.querySelectorAll('[data-field="name"], [data-field="price"]')]
+    .some((input) => input.value) || editingSaleId;
   const hasPurchaseDraft = editingPurchaseId || el.purchaseAmount.value || el.purchaseNote.value;
   if ((hasSaleDraft || hasPurchaseDraft || !el.productForm.classList.contains("hidden")) &&
       !confirm("Đổi chi nhánh sẽ bỏ nội dung chưa lưu. Bạn có muốn tiếp tục?")) {
@@ -197,10 +204,39 @@ document.querySelectorAll("[data-payment-report]").forEach((card) => {
 
 // ─── Sale form ──────────────────────────────────────────────────────────────
 
-el.addOrderItem.addEventListener("click", () => {
+el.addOrderItem.addEventListener("click", openProductPicker);
+document.querySelector("#addManualItem").addEventListener("click", () => {
   addOrderItemRow();
   updateSalePreview();
 });
+document.querySelector("#cancelPicker").addEventListener("click", () => el.productPicker.close());
+el.productPicker.addEventListener("close", () => {
+  document.body.classList.remove("picker-open");
+  el.addOrderItem.focus();
+});
+el.pickerSearch.addEventListener("input", renderPickerProducts);
+document.querySelectorAll("[data-picker-view]").forEach((button) => {
+  button.addEventListener("click", () => {
+    pickerView = button.dataset.pickerView;
+    renderPickerProducts();
+  });
+});
+el.pickerResults.addEventListener("click", (event) => {
+  const control = event.target.closest("[data-picker-product]");
+  if (!control) return;
+  const id = control.dataset.pickerProduct;
+  const current = pickerQuantities.get(id) || 0;
+  const next = Math.max(0, current + Number(control.dataset.change));
+  if (!Number.isSafeInteger(next)) return;
+  if (next) pickerQuantities.set(id, next);
+  else pickerQuantities.delete(id);
+  renderPickerProducts();
+  const row = [...el.pickerResults.querySelectorAll(".picker-product")]
+    .find((item) => item.dataset.id === id);
+  const action = control.dataset.change === "-1" && next ? "-1" : "1";
+  row?.querySelector(`[data-change="${action}"]`)?.focus({ preventScroll: true });
+});
+document.querySelector("#completePicker").addEventListener("click", completeProductPicker);
 
 el.cancelSaleEdit.addEventListener("click", resetSaleForm);
 
@@ -211,21 +247,23 @@ el.saleForm.addEventListener("input", (event) => {
 });
 
 el.orderItems.addEventListener("change", (event) => {
-  const field = event.target.dataset.field;
-  if (field !== "product" && field !== "tier") return;
-  const row = event.target.closest(".order-row");
-  if (field === "product") row.querySelector('[data-field="tier"]').value = "vietnamese";
-  applyCatalogPrice(row);
+  if (event.target.dataset.field !== "tier") return;
+  applyCatalogPrice(event.target.closest(".order-row"));
   updateSalePreview();
 });
 
 el.saleForm.addEventListener("click", (event) => {
+  const qtyButton = event.target.closest("[data-qty-change]");
+  if (qtyButton) {
+    const input = qtyButton.closest(".order-row").querySelector('[data-field="qty"]');
+    const next = input.valueAsNumber + Number(qtyButton.dataset.qtyChange);
+    if (Number.isSafeInteger(next) && next >= 1) input.value = next;
+    updateSalePreview();
+    return;
+  }
   const removeButton = event.target.closest("[data-remove-item]");
   if (!removeButton) return;
-
-  const rows = [...el.orderItems.querySelectorAll(".order-row")];
   removeButton.closest(".order-row").remove();
-  if (rows.length === 1) addOrderItemRow();
   updateSalePreview();
 });
 
@@ -506,7 +544,9 @@ function readProducts(products) {
     const internationalPrice = product.internationalPrice ?? product.wholesalePrice;
     if (validPrice(vietnamesePrice) && validPrice(internationalPrice)) {
       result.push({ id: product.id, branchId: recordBranch(product), name: product.name, vietnamesePrice, internationalPrice,
-        stock: Number.isSafeInteger(product.stock) ? product.stock : null });
+        stock: Number.isSafeInteger(product.stock) ? product.stock : null,
+        sku: typeof product.sku === "string" ? product.sku : "",
+        barcode: typeof product.barcode === "string" ? product.barcode : "" });
     }
   }
   return result;
@@ -530,11 +570,6 @@ function switchTab(tabName) {
     item.classList.toggle("active", item.id === tabName);
   });
   if (tabName === "sell") {
-    el.orderItems.querySelectorAll('[data-field="product"]').forEach((select) => {
-      const id = select.value;
-      select.innerHTML = productOptions(id);
-      if (id) applyCatalogPrice(select.closest(".order-row"));
-    });
     if (collectOrderItems().length) updateSalePreview();
   }
   if (tabName === "overview") renderOverviewChart();
@@ -583,11 +618,11 @@ function resetSaleForm() {
   editingSaleId = "";
   el.salePayment.value = "cash";
   el.saleDateTime.value = formatDateTimeInput(new Date());
-  el.saleHeading.textContent = "Tạo đơn bán";
+  el.saleHeading.textContent = "POS · Tạo đơn";
   el.saleDescription.textContent = "Chọn sản phẩm và mức giá cho từng dòng.";
   el.saleSubmit.textContent = "Lưu đơn bán";
   el.cancelSaleEdit.classList.add("hidden");
-  renderOrderItems([{}]);
+  renderOrderItems([]);
   updateSalePreview();
 }
 
@@ -600,35 +635,112 @@ function getSaleDateTimeIso() {
   return date.toISOString();
 }
 
-function productOptions(selected = "") {
-  return '<option value="">Nhập sản phẩm thủ công</option>' + forActiveBranch(state.products).map((product) =>
-    `<option value="${escapeAttribute(product.id)}"${product.id === selected ? " selected" : ""}>${escapeHtml(product.name)}</option>`
-  ).join("");
+function openProductPicker() {
+  pickerQuantities = new Map();
+  el.pickerSearch.value = "";
+  document.querySelector("#pickerBranch").textContent = BRANCH_LABELS[activeBranch];
+  renderPickerProducts();
+  el.productPicker.showModal();
+  document.body.classList.add("picker-open");
+  document.querySelector("#cancelPicker").focus();
+}
+
+function pickerProducts() {
+  const words = normalizeText(el.pickerSearch.value).split(/\s+/).filter(Boolean);
+  return forActiveBranch(state.products).filter((product) => {
+    const text = normalizeText(`${product.name} ${product.sku || ""} ${product.barcode || ""}`);
+    return words.every((word) => text.includes(word));
+  });
+}
+
+function renderPickerProducts() {
+  const products = pickerProducts();
+  el.pickerResults.classList.toggle("picker-grid", pickerView === "grid");
+  document.querySelectorAll("[data-picker-view]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.pickerView === pickerView));
+  });
+  document.querySelector("#pickerResultCount").textContent = `${products.length} sản phẩm`;
+  el.pickerResults.innerHTML = products.map((product) => {
+    const qty = pickerQuantities.get(product.id) || 0;
+    const id = escapeAttribute(product.id);
+    const name = escapeHtml(product.name);
+    return `
+      <article class="picker-product${qty ? " selected" : ""}" data-id="${id}">
+        <span class="product-thumbnail" aria-hidden="true">${escapeHtml(product.name.slice(0, 2).toUpperCase())}${qty ? `<b>${qty}</b>` : ""}</span>
+        <div class="picker-product-info">
+          <strong>${name}</strong>
+          <span class="picker-product-price">${formatMoney(product.vietnamesePrice)}</span>
+          ${product.sku ? `<small>${escapeHtml(product.sku)}</small>` : ""}
+          <small>Tồn kho: <span class="${product.stock != null && product.stock <= 0 ? "stock-low" : ""}">${product.stock == null ? "Chưa cập nhật" : product.stock.toLocaleString("vi-VN")}</span></small>
+        </div>
+        <div class="qty-stepper">
+          ${qty ? `<button type="button" data-picker-product="${id}" data-change="-1" aria-label="Giảm ${escapeAttribute(product.name)}">−</button><output>${qty}</output>` : ""}
+          <button type="button" data-picker-product="${id}" data-change="1" aria-label="Thêm ${escapeAttribute(product.name)}">＋</button>
+        </div>
+      </article>`;
+  }).join("") || `<div class="empty">${state.products.some((product) => recordBranch(product) === activeBranch)
+    ? "Không tìm thấy sản phẩm. Thử tên hoặc mã khác."
+    : "Chi nhánh này chưa có sản phẩm. Thêm sản phẩm tại mục Sản phẩm hoặc nhập thủ công trong đơn."}</div>`;
+  let qty = 0;
+  let total = 0;
+  for (const product of forActiveBranch(state.products)) {
+    const count = pickerQuantities.get(product.id) || 0;
+    qty += count;
+    total += count * product.vietnamesePrice;
+  }
+  el.pickerSelectedCount.textContent = qty ? `Đã chọn ${qty} sản phẩm` : "Chưa chọn sản phẩm";
+  el.pickerTotal.textContent = formatMoney(total);
+}
+
+function completeProductPicker() {
+  for (const product of forActiveBranch(state.products)) {
+    const qty = pickerQuantities.get(product.id);
+    if (!qty) continue;
+    const row = [...el.orderItems.querySelectorAll(".order-row:not([data-saved])")]
+      .find((entry) => entry.querySelector('[data-field="product"]').value === product.id &&
+        entry.querySelector('[data-field="tier"]').value === "vietnamese" &&
+        entry.querySelector('[data-field="price"]').valueAsNumber === product.vietnamesePrice);
+    const input = row?.querySelector('[data-field="qty"]');
+    if (input && Number.isSafeInteger(input.valueAsNumber + qty)) {
+      input.value = input.valueAsNumber + qty;
+    } else {
+      el.orderItems.insertAdjacentHTML("beforeend", orderItemTemplate({
+        productId: product.id, name: product.name, price: product.vietnamesePrice, qty,
+      }));
+    }
+  }
+  updateSalePreview();
+  el.productPicker.close();
 }
 
 function orderItemTemplate(item) {
   const saved = item.saved === true;
+  const product = !saved && forActiveBranch(state.products).find((entry) => entry.id === item.productId);
+  const tier = item.priceTier || "vietnamese";
   return `
     <div class="order-row"${saved ? ' data-saved="true"' : ""}>
-      ${saved ? "" : `<label class="catalog-field">Chọn sản phẩm
-        <select data-field="product">${productOptions()}</select>
-      </label>`}
-      <label class="name-field">Tên sản phẩm
-        <input data-field="name" type="text" placeholder="Nhập tên sản phẩm" value="${escapeAttribute(item.name ?? "")}" ${saved ? "readonly" : "required"} />
+      <input type="hidden" data-field="product" value="${escapeAttribute(product?.id || "")}" />
+      ${product || saved ? `<p class="order-product-name">${escapeHtml(item.name)}</p>` : ""}
+      <label class="name-field${product || saved ? " hidden" : ""}">Tên sản phẩm
+        <input data-field="name" type="text" placeholder="Nhập tên sản phẩm" value="${escapeAttribute(item.name ?? "")}" ${product || saved ? "readonly" : "required"} />
       </label>
-      ${saved ? "" : `<label class="tier-field hidden">Giá theo khách
+      ${saved || !product ? "" : `<label class="tier-field">Giá theo khách
         <select data-field="tier">
-          <option value="vietnamese">Khách Việt Nam</option>
-          <option value="international">Khách nước ngoài</option>
+          <option value="vietnamese"${tier === "vietnamese" ? " selected" : ""}>Khách Việt Nam</option>
+          <option value="international"${tier === "international" ? " selected" : ""}>Khách nước ngoài</option>
         </select>
       </label>`}
       <label>
         ${saved ? "Đơn giá đã lưu" : "Đơn giá (đ)"}
-        <input data-field="price" type="number" inputmode="numeric" min="0" step="1" placeholder="0" value="${escapeAttribute(item.price ?? "")}" ${saved ? "readonly" : "required"} />
+        <input data-field="price" type="number" inputmode="numeric" min="0" step="1" placeholder="0" value="${escapeAttribute(item.price ?? "")}" ${saved || product ? "readonly" : "required"} />
       </label>
-      <label>
+      <label class="order-quantity">
         Số lượng
-        <input data-field="qty" type="number" inputmode="numeric" min="1" step="1" value="${escapeAttribute(item.qty ?? 1)}" required />
+        <span class="qty-stepper">
+          <button type="button" data-qty-change="-1" aria-label="Giảm số lượng">−</button>
+          <input data-field="qty" type="number" inputmode="numeric" min="1" step="1" value="${escapeAttribute(item.qty ?? 1)}" required />
+          <button type="button" data-qty-change="1" aria-label="Tăng số lượng">＋</button>
+        </span>
       </label>
       <button class="danger-button remove-item-button" type="button" data-remove-item aria-label="Xóa dòng sản phẩm">Xóa</button>
       ${saved ? `<input type="hidden" data-saved-product value="${escapeAttribute(item.productId ?? "")}" /><input type="hidden" data-saved-tier value="${escapeAttribute(item.priceTier ?? "")}" />` : ""}
@@ -637,15 +749,11 @@ function orderItemTemplate(item) {
 }
 
 function applyCatalogPrice(row) {
-  const product = state.products.find((entry) => entry.id === row.querySelector('[data-field="product"]').value);
-  const name = row.querySelector('[data-field="name"]');
-  const price = row.querySelector('[data-field="price"]');
-  const tier = row.querySelector('[data-field="tier"]');
-  name.closest("label").classList.toggle("hidden", !!product);
-  tier.closest("label").classList.toggle("hidden", !product);
-  name.readOnly = price.readOnly = !!product;
-  name.value = product?.name ?? "";
-  price.value = product ? (tier.value === "international" ? product.internationalPrice : product.vietnamesePrice) : "";
+  const product = forActiveBranch(state.products).find((entry) => entry.id === row.querySelector('[data-field="product"]').value);
+  if (!product) return;
+  const tier = row.querySelector('[data-field="tier"]').value;
+  row.querySelector('[data-field="price"]').value = tier === "international"
+    ? product.internationalPrice : product.vietnamesePrice;
 }
 
 function renderOrderItems(items) {
@@ -654,7 +762,7 @@ function renderOrderItems(items) {
 
 function addOrderItemRow() {
   el.orderItems.insertAdjacentHTML("beforeend", orderItemTemplate({}));
-  el.orderItems.lastElementChild.querySelector('[data-field="product"]').focus();
+  el.orderItems.lastElementChild.querySelector('[data-field="name"]').focus();
 }
 
 function collectOrderItems() {
@@ -663,7 +771,7 @@ function collectOrderItems() {
       const name = row.querySelector('[data-field="name"]').value.trim();
       const price = row.querySelector('[data-field="price"]').valueAsNumber;
       const qty = row.querySelector('[data-field="qty"]').valueAsNumber;
-      const productId = row.querySelector('[data-field="product"], [data-saved-product]')?.value;
+      const productId = row.dataset.saved ? row.querySelector("[data-saved-product]").value : row.querySelector('[data-field="product"]').value;
       const priceTier = row.querySelector('[data-field="tier"], [data-saved-tier]')?.value;
       return { name, price, qty, ...(productId ? { productId, priceTier } : {}) };
     })
@@ -673,6 +781,7 @@ function collectOrderItems() {
 
 function updateSalePreview() {
   const items = collectOrderItems();
+  el.orderEmpty.classList.toggle("hidden", !!el.orderItems.children.length);
   if (items.length === 0) {
     showSaleMessage("Nhập sản phẩm để tạo đơn.");
     return;
