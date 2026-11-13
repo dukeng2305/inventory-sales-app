@@ -192,7 +192,7 @@ el.saleForm.addEventListener("submit", (event) => {
     return;
   }
 
-  const total = sumOrderItems(items);
+  const total = orderTotal(items);
   const editingSale = state.sales.find((sale) => sale.id === editingSaleId);
   const saleData = {
     items,
@@ -296,6 +296,37 @@ el.importFile.addEventListener("change", async () => {
     const payload = JSON.parse(await file.text());
     if (!payload || !Array.isArray(payload.sales)) {
       alert("File sao lưu không hợp lệ.");
+      return;
+    }
+
+    if (payload.source === "sapo") {
+      const products = readProducts(payload.products);
+      if (!Array.isArray(payload.products) || products.length !== payload.products.length ||
+          new Set(products.map((product) => product.id)).size !== products.length ||
+          !payload.sales.every((sale) => sale && typeof sale.sapoOrderNumber === "string" &&
+            sale.id === `sapo-order-${sale.sapoOrderNumber}` && Number.isFinite(Date.parse(sale.createdAt)) &&
+            validPrice(sale.total) && sale.paymentMethod === "unknown" &&
+            Array.isArray(sale.items) && sale.items.length && sale.items.every((item) =>
+              item && typeof item.name === "string" && item.name.trim() && validPrice(item.price) &&
+              Number.isSafeInteger(item.qty) && item.qty > 0)) ||
+          new Set(payload.sales.map((sale) => sale.id)).size !== payload.sales.length) {
+        alert("File dữ liệu Sapo không hợp lệ.");
+        return;
+      }
+      const newProducts = products.filter((product) => !state.products.some((saved) => saved.id === product.id));
+      const newSales = payload.sales.filter((sale) => !state.sales.some((saved) => saved.id === sale.id));
+      if (!newProducts.length && !newSales.length) {
+        el.importStatus.textContent = "Dữ liệu Sapo trong file này đã được nhập.";
+        return;
+      }
+      if (!confirm(`Thêm ${newProducts.length} sản phẩm và ${newSales.length} đơn từ Sapo vào dữ liệu hiện tại?`)) return;
+      state.products.push(...newProducts);
+      state.sales = [...state.sales, ...newSales].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      saveState();
+      resetSaleForm();
+      closeProductForm();
+      render();
+      el.importStatus.textContent = `Đã thêm ${newProducts.length} sản phẩm và ${newSales.length} đơn từ Sapo.`;
       return;
     }
 
@@ -518,7 +549,7 @@ function updateSalePreview() {
     showSaleMessage("Nhập sản phẩm để tạo đơn.");
     return;
   }
-  showSaleMessage(`Tạm tính: ${formatMoney(sumOrderItems(items))} · ${items.length} sản phẩm.`);
+  showSaleMessage(`Tạm tính: ${formatMoney(orderTotal(items))} · ${items.length} sản phẩm.`);
 }
 
 function showSaleMessage(message) {
@@ -600,6 +631,9 @@ function renderReports() {
   el.afternoonOrders.textContent = `${afternoonSales.length} đơn`;
   el.cashRevenue.textContent = formatMoney(sumRevenueByPayment(rangeSales, "cash"));
   el.transferRevenue.textContent = formatMoney(sumRevenueByPayment(rangeSales, "transfer"));
+  const unknownRevenue = sumRevenueByPayment(rangeSales, "unknown");
+  document.querySelector("#unknownRevenue").textContent = rangeSales.some((sale) => sale.paymentMethod === "unknown")
+    ? `Chưa rõ hình thức thanh toán: ${formatMoney(unknownRevenue)}` : "";
   renderReportPaymentOrders(rangeSales, label);
 
   // Profit section
@@ -689,14 +723,13 @@ function renderHistory() {
   }
 
   el.saleHistory.innerHTML = state.sales
-    .slice(0, 50)
     .map((sale) => {
-      const method = sale.paymentMethod || "cash";
+      const method = ["cash", "transfer", "unknown"].includes(sale.paymentMethod) ? sale.paymentMethod : "cash";
       const items = saleItems(sale);
       return `
       <article class="list-item sale-item ${method}">
         <div>
-          <p class="item-title">${escapeHtml(saleTitle(items))}</p>
+          <p class="item-title">${sale.sapoOrderNumber ? escapeHtml(sale.sapoOrderNumber) + " · " : ""}${escapeHtml(saleTitle(items))}</p>
           <p class="item-meta">${formatDateTime(sale.createdAt)} · ${formatMoney(sale.total)} · ${paymentMethodLabel(method)}</p>
           <p class="item-meta">${escapeHtml(items.map((item) => `${item.name} × ${item.qty} · ${formatMoney(item.price)}/sp`).join(" · "))}</p>
         </div>
@@ -904,6 +937,14 @@ function saleTitle(items) {
   return `${items.length} sản phẩm`;
 }
 
+function orderTotal(items) {
+  const saved = state.sales.find((sale) => sale.id === editingSaleId);
+  const lineTotal = sumOrderItems(items);
+  if (!saved || !saved.sapoOrderNumber) return lineTotal;
+  const adjustment = saved.total - sumOrderItems(saleItems(saved));
+  return Math.max(0, lineTotal + adjustment);
+}
+
 function sumOrderItems(items) {
   return items.reduce((total, item) => total + item.price * item.qty, 0);
 }
@@ -927,6 +968,7 @@ function sumPurchases(purchases) {
 }
 
 function paymentMethodLabel(paymentMethod) {
+  if (paymentMethod === "unknown") return "Chưa rõ thanh toán";
   return paymentMethod === "transfer" ? "Chuyển khoản" : "Tiền mặt";
 }
 

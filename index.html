@@ -100,6 +100,7 @@
               <select id="salePayment" required>
                 <option value="cash">Tiền mặt</option>
                 <option value="transfer">Chuyển khoản</option>
+                <option value="unknown">Chưa rõ thanh toán</option>
               </select>
             </label>
             <label>
@@ -188,6 +189,8 @@
             </article>
           </div>
 
+          <p class="form-status" id="unknownRevenue"></p>
+
           <section class="shift-payment-summary" aria-label="Doanh thu theo ca và hình thức thanh toán">
             <div class="shift-payment-heading">
               <h3>Doanh thu theo ca</h3>
@@ -260,7 +263,7 @@
         <section class="tab-panel" id="history">
           <div class="panel-heading">
             <h1>Đơn hàng</h1>
-            <p>Các đơn mới nhất được lưu trên thiết bị này.</p>
+            <p>Các đơn đã lưu trên thiết bị này.</p>
           </div>
           <div class="list" id="saleHistory"></div>
         </section>
