@@ -11,7 +11,7 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-    <link rel="stylesheet" href="styles.css?v=23" />
+    <link rel="stylesheet" href="styles.css?v=24" />
   </head>
   <body>
     <div class="app-shell">
@@ -63,7 +63,7 @@
 
         <section class="tab-panel" id="products">
           <div class="panel-heading section-heading">
-            <div><h1>Sản phẩm</h1><p>Đặt giá cho khách Việt Nam và khách nước ngoài.</p></div>
+            <div><h1>Sản phẩm</h1><p>Quản lý giá bán và tồn kho theo chi nhánh.</p></div>
             <button class="primary-button" id="addProduct" type="button">+ Thêm</button>
           </div>
           <form class="product-form hidden" id="productForm">
@@ -73,6 +73,7 @@
               <label>Giá khách Việt Nam (đ)<input id="vietnamesePrice" type="number" inputmode="numeric" min="0" step="1" required /></label>
               <label>Giá khách nước ngoài (đ)<input id="internationalPrice" type="number" inputmode="numeric" min="0" step="1" required /></label>
             </div>
+            <label>Tồn kho<input id="productStock" type="number" inputmode="numeric" min="0" step="1" placeholder="Để trống nếu chưa biết" /></label>
             <div class="item-actions">
               <button class="primary-button" type="submit">Lưu sản phẩm</button>
               <button class="ghost-button" id="cancelProduct" type="button">Hủy</button>
@@ -287,6 +288,6 @@
       </nav>
     </div>
 
-    <script src="app.js?v=23"></script>
+    <script src="app.js?v=24"></script>
   </body>
 </html>

@@ -25,6 +25,7 @@ const el = {
   recentSales: document.querySelector("#recentSales"),
   saleHeading: document.querySelector("#saleHeading"),
   saleDescription: document.querySelector("#saleDescription"),
+  productStock: document.querySelector("#productStock"),
   productForm: document.querySelector("#productForm"),
   productFormTitle: document.querySelector("#productFormTitle"),
   productName: document.querySelector("#productName"),
@@ -130,9 +131,15 @@ el.productForm.addEventListener("submit", (event) => {
     el.productStatus.textContent = "Nhập tên sản phẩm và hai mức giá hợp lệ.";
     return;
   }
+  const stock = el.productStock.value === "" ? null : el.productStock.valueAsNumber;
+  if (stock !== null && !validPrice(stock)) {
+    el.productStatus.textContent = "Số lượng tồn kho phải là số nguyên từ 0 trở lên.";
+    return;
+  }
+  const details = { name, vietnamesePrice, internationalPrice, stock };
   const product = state.products.find((entry) => entry.id === editingProductId);
-  if (product) Object.assign(product, { name, vietnamesePrice, internationalPrice });
-  else state.products.unshift({ id: crypto.randomUUID(), branchId: activeBranch, name, vietnamesePrice, internationalPrice });
+  if (product) Object.assign(product, details);
+  else state.products.unshift({ id: crypto.randomUUID(), branchId: activeBranch, ...details });
   saveState();
   closeProductForm();
   renderProducts();
@@ -462,7 +469,8 @@ function readProducts(products) {
     const vietnamesePrice = product.vietnamesePrice ?? product.retailPrice;
     const internationalPrice = product.internationalPrice ?? product.wholesalePrice;
     if (validPrice(vietnamesePrice) && validPrice(internationalPrice)) {
-      result.push({ id: product.id, branchId: recordBranch(product), name: product.name, vietnamesePrice, internationalPrice });
+      result.push({ id: product.id, branchId: recordBranch(product), name: product.name, vietnamesePrice, internationalPrice,
+        stock: validPrice(product.stock) ? product.stock : null });
     }
   }
   return result;
@@ -504,6 +512,7 @@ function openProductForm(product) {
   el.productName.value = product?.name || "";
   el.vietnamesePrice.value = product?.vietnamesePrice ?? "";
   el.internationalPrice.value = product?.internationalPrice ?? "";
+  el.productStock.value = product?.stock ?? "";
   el.productForm.classList.remove("hidden");
   el.productName.focus();
 }
@@ -522,6 +531,7 @@ function renderProducts() {
     <article class="list-item product-item">
       <div>
         <p class="item-title">${escapeHtml(product.name)}</p>
+        <p class="item-meta">Tồn kho: <strong>${product.stock == null ? "Chưa cập nhật" : product.stock.toLocaleString("vi-VN")}</strong></p>
         <div class="product-prices">
           <span>Khách Việt Nam <strong>${formatMoney(product.vietnamesePrice)}</strong></span>
           <span>Khách nước ngoài <strong>${formatMoney(product.internationalPrice)}</strong></span>
