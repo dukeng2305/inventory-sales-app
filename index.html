@@ -11,7 +11,7 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-    <link rel="stylesheet" href="styles.css?v=31" />
+    <link rel="stylesheet" href="styles.css?v=32" />
   </head>
   <body>
     <div class="app-shell">
@@ -94,6 +94,17 @@
             <input class="hidden" id="importFile" type="file" accept="application/json,.json" />
           </div>
           <p class="form-status" id="importStatus" role="status"></p>
+          <section id="syncSection" class="hidden">
+            <h2>Đồng bộ dữ liệu</h2>
+            <form id="syncLogin" class="product-form">
+              <label>Email<input name="email" type="email" autocomplete="username" required /></label>
+              <label>Mật khẩu<input name="password" type="password" autocomplete="current-password" required /></label>
+              <button class="primary-button" type="submit">Đăng nhập</button>
+            </form>
+            <button id="syncInitialize" class="primary-button" type="button" hidden>Khởi tạo từ dữ liệu trên máy</button>
+            <button id="syncSignOut" class="ghost-button" type="button" hidden>Đăng xuất</button>
+            <p id="syncStatus" role="status"></p>
+          </section>
         </section>
 
         <!-- TAB: BÁN HÀNG -->
@@ -333,6 +344,8 @@
         <button class="primary-button" id="completePicker" type="button">Hoàn tất</button>
       </footer>
     </dialog>
-    <script src="app.js?v=31"></script>
+    <script src="app.js?v=32"></script>
+    <script src="sync-config.js?v=33"></script>
+    <script src="sync.js?v=32"></script>
   </body>
 </html>

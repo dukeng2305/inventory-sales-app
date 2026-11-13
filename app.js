@@ -135,7 +135,7 @@ el.productList.addEventListener("click", (event) => {
   if (button) openProductForm(state.products.find((product) => product.id === button.dataset.editProduct));
 });
 
-el.productForm.addEventListener("submit", (event) => {
+el.productForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const name = el.productName.value.trim();
   const vietnamesePrice = el.vietnamesePrice.valueAsNumber;
@@ -151,9 +151,10 @@ el.productForm.addEventListener("submit", (event) => {
   }
   const details = { name, vietnamesePrice, internationalPrice, stock };
   const product = state.products.find((entry) => entry.id === editingProductId);
-  if (product) Object.assign(product, details);
-  else state.products.unshift({ id: crypto.randomUUID(), branchId: activeBranch, ...details });
-  saveState();
+  const products = product
+    ? state.products.map((entry) => entry === product ? { ...entry, ...details } : entry)
+    : [{ id: crypto.randomUUID(), branchId: activeBranch, ...details }, ...state.products];
+  if (!await saveState({ ...state, products })) return;
   closeProductForm();
   renderProducts();
   el.productStatus.textContent = product ? "Đã cập nhật sản phẩm." : "Đã thêm sản phẩm.";
@@ -277,7 +278,7 @@ el.saleForm.addEventListener("click", (event) => {
   updateSalePreview();
 });
 
-el.saleForm.addEventListener("submit", (event) => {
+el.saleForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const items = collectOrderItems();
@@ -319,9 +320,9 @@ el.saleForm.addEventListener("submit", (event) => {
     ? { ...editingSale, ...saleData, status: "paid" }
     : { id: crypto.randomUUID(), branchId: activeBranch, ...saleData, status: "paid" };
   try {
-    commitSaleStock(editingSale, nextSale);
+    if (!await commitSaleStock(editingSale, nextSale)) return;
   } catch (error) {
-    showSaleMessage("Không thể lưu đơn và tồn kho. Vui lòng thử lại.");
+    showSaleMessage(error.message);
     return;
   }
   const unknownCount = items.filter((item) => !item.productId ||
@@ -344,7 +345,7 @@ el.purchaseNote.addEventListener("input", updatePurchasePreview);
 
 el.cancelPurchaseEdit.addEventListener("click", resetPurchaseForm);
 
-el.purchaseForm.addEventListener("submit", (event) => {
+el.purchaseForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const amount = Number(el.purchaseAmount.value);
@@ -360,26 +361,15 @@ el.purchaseForm.addEventListener("submit", (event) => {
 
   const purchaseData = { amount, date, note };
 
-  if (editingPurchase) {
-    Object.assign(editingPurchase, purchaseData);
-    saveState();
-    resetPurchaseForm();
-    render();
-    showPurchaseMessage(`Đã cập nhật nhập hàng: ${formatMoney(amount)}.`);
-    return;
-  }
-
-  state.purchases.unshift({
-    id: crypto.randomUUID(),
-    branchId: activeBranch,
-    ...purchaseData,
-    createdAt: new Date().toISOString(),
-  });
-
-  saveState();
+  const purchases = editingPurchase
+    ? state.purchases.map((entry) => entry === editingPurchase ? { ...entry, ...purchaseData } : entry)
+    : [{ id: crypto.randomUUID(), branchId: activeBranch, ...purchaseData, createdAt: new Date().toISOString() },
+      ...state.purchases];
+  if (!await saveState({ ...state, purchases })) return;
   resetPurchaseForm();
   render();
-  showPurchaseMessage(`Đã lưu nhập hàng: ${formatMoney(amount)}${note ? " · " + note : ""}.`);
+  showPurchaseMessage(`Đã ${editingPurchase ? "cập nhật" : "lưu"} nhập hàng: ${formatMoney(amount)}.`);
+
 });
 
 // ─── Export / Import ─────────────────────────────────────────────────────────
@@ -406,7 +396,7 @@ el.importFile.addEventListener("change", async () => {
   try {
     const payload = JSON.parse(await file.text());
     if (payload?.source === "sapo-stock") {
-      importSapoStock(payload);
+      await importSapoStock(payload);
       return;
     }
     if (!payload || !Array.isArray(payload.sales)) {
@@ -451,9 +441,8 @@ el.importFile.addEventListener("change", async () => {
         return;
       }
       if (!confirm(`Thêm ${newProducts.length} sản phẩm và ${newSales.length} đơn từ Sapo vào chi nhánh ${branchLabel}?`)) return;
-      state.products.push(...newProducts);
-      state.sales = [...state.sales, ...newSales].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      saveState();
+      const sales = [...state.sales, ...newSales].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      if (!await saveState({ ...state, products: [...state.products, ...newProducts], sales })) return;
       resetSaleForm();
       closeProductForm();
       render();
@@ -461,13 +450,13 @@ el.importFile.addEventListener("change", async () => {
       return;
     }
 
-    const ok = confirm("Nhập file này sẽ thay thế dữ liệu hiện tại trên máy. Bạn có muốn tiếp tục?");
+    const ok = confirm(window.inventoryCloud
+      ? "Thay toàn bộ dữ liệu chung bằng file sao lưu này?"
+      : "Nhập file này sẽ thay thế dữ liệu hiện tại trên máy. Bạn có muốn tiếp tục?");
     if (!ok) return;
 
-    state.sales = payload.sales;
-    state.products = readProducts(payload.products);
-    state.purchases = Array.isArray(payload.purchases) ? payload.purchases : [];
-    saveState();
+    if (!await saveState({ ...state, sales: payload.sales, products: readProducts(payload.products),
+      purchases: Array.isArray(payload.purchases) ? payload.purchases : [] })) return;
     resetSaleForm();
     resetPurchaseForm();
     closeProductForm();
@@ -482,7 +471,7 @@ el.importFile.addEventListener("change", async () => {
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
-function importSapoStock(payload) {
+async function importSapoStock(payload) {
   const { branchId: targetBranch, items } = payload;
   if (!Object.hasOwn(BRANCH_LABELS, targetBranch) || !Array.isArray(items) || !items.length ||
       !items.every((item) => typeof item?.id === "string" && Number.isSafeInteger(item.stock)) ||
@@ -507,8 +496,7 @@ function importSapoStock(payload) {
   const next = { ...state, products: state.products.map((product) =>
     recordBranch(product) === targetBranch && updated.has(product.id)
       ? { ...product, stock: counts.get(product.id) } : product) };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  state.products = next.products;
+  if (!await saveState(next)) return;
   closeProductForm();
   renderProducts();
   el.importStatus.textContent = `Đã cập nhật số tồn của ${changes.length} sản phẩm tại ${branchLabel}.${note}`;
@@ -570,9 +558,28 @@ function readProducts(products) {
   return result;
 }
 
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+async function saveState(nextState) {
+  try {
+    if (window.inventoryCloud) await window.inventoryCloud.commit(nextState);
+    else localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+    Object.assign(state, nextState);
+    return true;
+  } catch (error) {
+    alert(error.message || "Không thể lưu dữ liệu.");
+    return false;
+  }
 }
+
+window.inventorySharedSnapshot = () => state;
+window.inventoryRestoreLocal = () => window.inventoryApplyShared(loadState());
+window.inventoryApplyShared = (snapshot) => {
+  Object.assign(state, { products: readProducts(snapshot.products), sales: snapshot.sales, purchases: snapshot.purchases });
+  if (el.productPicker.open) el.productPicker.close();
+  resetSaleForm();
+  resetPurchaseForm();
+  closeProductForm();
+  render();
+};
 
 // ─── UI helpers ──────────────────────────────────────────────────────────────
 
@@ -598,7 +605,7 @@ function activeProducts() {
   return forActiveBranch(state.products).filter((product) => !product.deletedAt);
 }
 
-function deleteProduct() {
+async function deleteProduct() {
   const product = activeProducts().find((entry) => entry.id === editingProductId);
   if (!product) return;
   if (!confirm(`Xóa sản phẩm "${product.name}" khỏi danh mục ${BRANCH_LABELS[activeBranch]}?`)) return;
@@ -607,13 +614,7 @@ function deleteProduct() {
     products: state.products.map((entry) => entry === product
       ? { ...entry, deletedAt: new Date().toISOString() } : entry),
   };
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
-  } catch (error) {
-    el.productStatus.textContent = "Không thể xóa sản phẩm. Vui lòng thử lại.";
-    return;
-  }
-  Object.assign(state, nextState);
+  if (!await saveState(nextState)) return;
   el.orderItems.querySelectorAll(".order-row:not([data-saved])").forEach((row) => {
     if (row.querySelector('[data-field="product"]').value === product.id) row.remove();
   });
@@ -1226,7 +1227,7 @@ function saleStockQuantities(sale) {
   return quantities;
 }
 
-function commitSaleStock(previous, nextSale) {
+async function commitSaleStock(previous, nextSale) {
   // Older sales are already reflected in the imported/current inventory snapshot.
   const before = previous?.status === "cancelled" ? {}
     : previous?.stockQuantities ?? saleStockQuantities(previous);
@@ -1236,20 +1237,20 @@ function commitSaleStock(previous, nextSale) {
     if (recordBranch(product) !== targetBranch || !Number.isSafeInteger(product.stock)) return product;
     const difference = (after[product.id] || 0) - (before[product.id] || 0);
     const stock = product.stock - difference;
-    if (!Number.isSafeInteger(stock)) throw new Error("Invalid stock quantity");
+    if (!Number.isSafeInteger(stock)) throw new Error("Số tồn vượt phạm vi cho phép.");
+    if (window.inventoryCloud && difference > 0 && stock < 0) {
+      throw new Error(`Không đủ tồn kho cho "${product.name}". Hiện còn ${product.stock}.`);
+    }
     return difference ? { ...product, stock } : product;
   });
   const updated = nextSale ? { ...nextSale, stockQuantities: after } : null;
   const sales = previous
     ? state.sales.flatMap((sale) => sale.id === previous.id ? updated ? [updated] : [] : [sale])
     : [updated, ...state.sales];
-  const nextState = { ...state, products, sales };
-  // Persist order and stock together before changing the in-memory state.
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
-  Object.assign(state, nextState);
+  return saveState({ ...state, products, sales });
 }
 
-function cancelSale(id) {
+async function cancelSale(id) {
   const sale = state.sales.find((item) => item.id === id);
   if (!sale || sale.status === "cancelled") return;
   const quantities = sale.stockQuantities ?? saleStockQuantities(sale);
@@ -1257,7 +1258,7 @@ function cancelSale(id) {
   const note = untracked ? ` ${untracked} dòng chưa ghi nhận tồn kho để tự động hoàn.` : "";
   if (!confirm(`Hủy đơn "${saleTitle(saleItems(sale))}" và hoàn lại tồn kho đã ghi nhận?${note}`)) return;
   try {
-    commitSaleStock(sale, { ...sale, status: "cancelled", cancelledAt: new Date().toISOString() });
+    if (!await commitSaleStock(sale, { ...sale, status: "cancelled", cancelledAt: new Date().toISOString() })) return;
   } catch (error) {
     alert("Không thể hủy đơn và cập nhật tồn kho. Vui lòng thử lại.");
     return;
@@ -1266,7 +1267,7 @@ function cancelSale(id) {
   render();
 }
 
-function deleteSale(id) {
+async function deleteSale(id) {
   const sale = state.sales.find((item) => item.id === id);
   if (!sale) return;
 
@@ -1274,7 +1275,7 @@ function deleteSale(id) {
   if (!ok) return;
 
   try {
-    commitSaleStock(sale, null);
+    if (!await commitSaleStock(sale, null)) return;
   } catch (error) {
     alert("Không thể xóa đơn và cập nhật tồn kho. Vui lòng thử lại.");
     return;
@@ -1300,7 +1301,7 @@ function editPurchase(id) {
   el.purchaseAmount.focus();
 }
 
-function deletePurchase(id) {
+async function deletePurchase(id) {
   const purchase = state.purchases.find((p) => p.id === id);
   if (!purchase) return;
 
@@ -1308,11 +1309,10 @@ function deletePurchase(id) {
   const ok = confirm(`Xóa lần nhập hàng ${label}?`);
   if (!ok) return;
 
-  state.purchases = state.purchases.filter((p) => p.id !== id);
+  if (!await saveState({ ...state, purchases: state.purchases.filter((p) => p.id !== id) })) return;
   if (editingPurchaseId === id) {
     resetPurchaseForm();
   }
-  saveState();
   render();
 }
 
