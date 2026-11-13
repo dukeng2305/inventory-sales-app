@@ -1,6 +1,6 @@
 const CACHE_PREFIX = `inventory-sales-app:${self.registration.scope}:`;
-const CACHE_NAME = `${CACHE_PREFIX}30`;
-const ASSETS = ["./", "./index.html", "./styles.css?v=30", "./app.js?v=30", "./manifest.webmanifest", "./icon.svg", "./apple-touch-icon.png"];
+const CACHE_NAME = `${CACHE_PREFIX}31`;
+const ASSETS = ["./", "./index.html", "./styles.css?v=31", "./app.js?v=31", "./manifest.webmanifest", "./icon.svg", "./apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS.map((url) =>

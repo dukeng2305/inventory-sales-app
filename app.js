@@ -36,6 +36,7 @@ const el = {
   recentSales: document.querySelector("#recentSales"),
   saleHeading: document.querySelector("#saleHeading"),
   saleDescription: document.querySelector("#saleDescription"),
+  deleteProduct: document.querySelector("#deleteProduct"),
   productStock: document.querySelector("#productStock"),
   productForm: document.querySelector("#productForm"),
   productFormTitle: document.querySelector("#productFormTitle"),
@@ -127,6 +128,7 @@ document.querySelectorAll("[data-go]").forEach((control) => {
 
 document.querySelector("#addProduct").addEventListener("click", () => openProductForm());
 document.querySelector("#cancelProduct").addEventListener("click", closeProductForm);
+el.deleteProduct.addEventListener("click", deleteProduct);
 el.productSearch.addEventListener("input", renderProducts);
 el.productList.addEventListener("click", (event) => {
   const button = event.target.closest("[data-edit-product]");
@@ -561,7 +563,8 @@ function readProducts(products) {
       result.push({ id: product.id, branchId: recordBranch(product), name: product.name, vietnamesePrice, internationalPrice,
         stock: Number.isSafeInteger(product.stock) ? product.stock : null,
         sku: typeof product.sku === "string" ? product.sku : "",
-        barcode: typeof product.barcode === "string" ? product.barcode : "" });
+        barcode: typeof product.barcode === "string" ? product.barcode : "",
+        deletedAt: typeof product.deletedAt === "string" ? product.deletedAt : null });
     }
   }
   return result;
@@ -591,9 +594,40 @@ function switchTab(tabName) {
   window.scrollTo(0, 0);
 }
 
+function activeProducts() {
+  return forActiveBranch(state.products).filter((product) => !product.deletedAt);
+}
+
+function deleteProduct() {
+  const product = activeProducts().find((entry) => entry.id === editingProductId);
+  if (!product) return;
+  if (!confirm(`Xóa sản phẩm "${product.name}" khỏi danh mục ${BRANCH_LABELS[activeBranch]}?`)) return;
+  const nextState = {
+    ...state,
+    products: state.products.map((entry) => entry === product
+      ? { ...entry, deletedAt: new Date().toISOString() } : entry),
+  };
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+  } catch (error) {
+    el.productStatus.textContent = "Không thể xóa sản phẩm. Vui lòng thử lại.";
+    return;
+  }
+  Object.assign(state, nextState);
+  el.orderItems.querySelectorAll(".order-row:not([data-saved])").forEach((row) => {
+    if (row.querySelector('[data-field="product"]').value === product.id) row.remove();
+  });
+  pickerQuantities.delete(product.id);
+  closeProductForm();
+  renderProducts();
+  updateSalePreview();
+  el.productStatus.textContent = `Đã xóa sản phẩm "${product.name}" khỏi danh mục.`;
+}
+
 function openProductForm(product) {
   editingProductId = product?.id || "";
   el.productStatus.textContent = "";
+  el.deleteProduct.classList.toggle("hidden", !product);
   el.productFormTitle.textContent = product ? "Sửa sản phẩm" : "Thêm sản phẩm";
   el.productName.value = product?.name || "";
   el.vietnamesePrice.value = product?.vietnamesePrice ?? "";
@@ -605,6 +639,7 @@ function openProductForm(product) {
 
 function closeProductForm() {
   editingProductId = "";
+  el.deleteProduct.classList.add("hidden");
   el.productForm.reset();
   el.productForm.classList.add("hidden");
   el.productStatus.textContent = "";
@@ -612,7 +647,7 @@ function closeProductForm() {
 
 function renderProducts() {
   const query = normalizeText(el.productSearch.value);
-  const products = forActiveBranch(state.products).filter((product) => normalizeText(product.name).includes(query));
+  const products = activeProducts().filter((product) => normalizeText(product.name).includes(query));
   el.productList.innerHTML = products.length ? products.map((product) => `
     <button class="list-item product-item" type="button" data-edit-product="${escapeAttribute(product.id)}" aria-label="Sửa ${escapeAttribute(product.name)}">
       <span>
@@ -664,7 +699,7 @@ function openProductPicker() {
 
 function pickerProducts() {
   const words = normalizeText(el.pickerSearch.value).split(/\s+/).filter(Boolean);
-  return forActiveBranch(state.products).filter((product) => {
+  return activeProducts().filter((product) => {
     const text = normalizeText(`${product.name} ${product.sku || ""} ${product.barcode || ""}`);
     return words.every((word) => text.includes(word));
   });
@@ -695,12 +730,12 @@ function renderPickerProducts() {
           <button type="button" data-picker-product="${id}" data-change="1" aria-label="Thêm ${escapeAttribute(product.name)}">＋</button>
         </div>
       </article>`;
-  }).join("") || `<div class="empty">${state.products.some((product) => recordBranch(product) === activeBranch)
+  }).join("") || `<div class="empty">${activeProducts().length
     ? "Không tìm thấy sản phẩm. Thử tên hoặc mã khác."
     : "Chi nhánh này chưa có sản phẩm. Thêm sản phẩm tại mục Sản phẩm hoặc nhập thủ công trong đơn."}</div>`;
   let qty = 0;
   let total = 0;
-  for (const product of forActiveBranch(state.products)) {
+  for (const product of activeProducts()) {
     const count = pickerQuantities.get(product.id) || 0;
     qty += count;
     total += count * product.vietnamesePrice;
@@ -710,7 +745,7 @@ function renderPickerProducts() {
 }
 
 function completeProductPicker() {
-  for (const product of forActiveBranch(state.products)) {
+  for (const product of activeProducts()) {
     const qty = pickerQuantities.get(product.id);
     if (!qty) continue;
     const row = [...el.orderItems.querySelectorAll(".order-row:not([data-saved])")]
@@ -732,7 +767,7 @@ function completeProductPicker() {
 
 function orderItemTemplate(item) {
   const saved = item.saved === true;
-  const product = !saved && forActiveBranch(state.products).find((entry) => entry.id === item.productId);
+  const product = !saved && activeProducts().find((entry) => entry.id === item.productId);
   const tier = item.priceTier || "vietnamese";
   return `
     <div class="order-row"${saved ? ' data-saved="true"' : ""}>
@@ -766,7 +801,7 @@ function orderItemTemplate(item) {
 }
 
 function applyCatalogPrice(row) {
-  const product = forActiveBranch(state.products).find((entry) => entry.id === row.querySelector('[data-field="product"]').value);
+  const product = activeProducts().find((entry) => entry.id === row.querySelector('[data-field="product"]').value);
   if (!product) return;
   const tier = row.querySelector('[data-field="tier"]').value;
   row.querySelector('[data-field="price"]').value = tier === "international"
