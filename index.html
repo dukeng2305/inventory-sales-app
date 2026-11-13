@@ -11,7 +11,7 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-    <link rel="stylesheet" href="styles.css?v=28" />
+    <link rel="stylesheet" href="styles.css?v=29" />
   </head>
   <body>
     <div class="app-shell">
@@ -109,6 +109,27 @@
             <button class="ghost-button add-item-button" id="addOrderItem" type="button">＋ Chọn sản phẩm</button>
             <button class="text-button manual-item-button" id="addManualItem" type="button">Nhập sản phẩm thủ công</button>
 
+            <section class="order-discount" aria-labelledby="discountHeading">
+              <h2 id="discountHeading">Giảm giá đơn hàng</h2>
+              <div class="discount-fields">
+                <label>Hình thức
+                  <select id="saleDiscountType">
+                    <option value="amount">Theo số tiền (đ)</option>
+                    <option value="percent">Theo phần trăm (%)</option>
+                  </select>
+                </label>
+                <label><span id="discountValueLabel">Số tiền giảm (đ)</span>
+                  <input id="saleDiscountValue" type="number" inputmode="decimal" min="0" step="1" value="0" required />
+                </label>
+              </div>
+              <p id="discountError" class="discount-error" role="status"></p>
+              <dl class="order-totals">
+                <div><dt>Tổng tiền hàng</dt><dd id="orderSubtotal">0 đ</dd></div>
+                <div id="orderAdjustmentRow" class="hidden"><dt>Chênh lệch theo đơn Sapo</dt><dd id="orderAdjustment">0 đ</dd></div>
+                <div><dt>Tiền giảm giá</dt><dd id="orderDiscount">0 đ</dd></div>
+                <div class="order-payable"><dt>Khách phải trả</dt><dd id="orderPayable">0 đ</dd></div>
+              </dl>
+            </section>
             <label>
               Thanh toán
               <select id="salePayment" required>
@@ -269,7 +290,7 @@
             <input id="productReportFilter" type="search" placeholder="Ví dụ: vòng tay hoặc 195000" autocomplete="off" />
           </label>
 
-          <h3>Doanh thu theo sản phẩm</h3>
+          <h3>Giá trị hàng theo sản phẩm (trước giảm giá đơn)</h3>
           <div class="list compact" id="topProducts"></div>
         </section>
 
@@ -311,6 +332,6 @@
         <button class="primary-button" id="completePicker" type="button">Hoàn tất</button>
       </footer>
     </dialog>
-    <script src="app.js?v=28"></script>
+    <script src="app.js?v=29"></script>
   </body>
 </html>

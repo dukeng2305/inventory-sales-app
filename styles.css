@@ -914,3 +914,15 @@ body.picker-open { overflow: hidden; }
   .picker-product .qty-stepper button { width: 30px; }
   .picker-grid .picker-product { grid-template-columns: 1fr; }
 }
+
+.order-discount { margin: 4px 0 20px; border-top: 1px solid var(--line); padding-top: 16px; }
+.discount-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.order-totals { margin: 16px 0 0; }
+.order-totals > div { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; }
+.order-totals dt { color: var(--muted); }
+.order-totals dd { margin: 0; text-align: right; font-weight: 650; }
+.order-totals .order-payable { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 6px; font-weight: 750; }
+.order-payable dd { color: var(--primary-strong); }
+.discount-error { color: var(--danger); margin: 10px 0 0; font-size: .85rem; }
+.discount-error:empty { display: none; }
+.primary-button:disabled { opacity: .5; cursor: default; }

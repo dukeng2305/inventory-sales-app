@@ -22,6 +22,9 @@ let pickerQuantities = new Map();
 let pickerView = "list";
 
 const el = {
+  saleDiscountType: document.querySelector("#saleDiscountType"),
+  saleDiscountValue: document.querySelector("#saleDiscountValue"),
+  discountError: document.querySelector("#discountError"),
   productPicker: document.querySelector("#productPicker"),
   pickerSearch: document.querySelector("#pickerSearch"),
   pickerResults: document.querySelector("#pickerResults"),
@@ -239,6 +242,11 @@ el.pickerResults.addEventListener("click", (event) => {
 document.querySelector("#completePicker").addEventListener("click", completeProductPicker);
 
 el.cancelSaleEdit.addEventListener("click", resetSaleForm);
+el.saleDiscountType.addEventListener("change", () => {
+  el.saleDiscountValue.value = "0";
+  updateSalePreview();
+});
+el.saleDiscountValue.addEventListener("input", updateSalePreview);
 
 el.saleForm.addEventListener("input", (event) => {
   if (event.target.matches("[data-field]")) {
@@ -284,7 +292,12 @@ el.saleForm.addEventListener("submit", (event) => {
     return;
   }
 
-  const total = orderTotal(items);
+  const amounts = orderAmounts(items);
+  if (amounts.error) {
+    showSaleMessage(amounts.error);
+    return;
+  }
+  const total = amounts.total;
   const editingSale = state.sales.find((sale) => sale.id === editingSaleId);
   const saleData = {
     items,
@@ -292,6 +305,10 @@ el.saleForm.addEventListener("submit", (event) => {
     qty: sumOrderQty(items),
     unitPrice: items.length === 1 ? items[0].price : 0,
     total,
+    discountType: amounts.type,
+    discountValue: amounts.value,
+    discountAmount: amounts.discount,
+    orderAdjustment: amounts.adjustment,
     paymentMethod,
     createdAt: saleDateTime,
   };
@@ -617,6 +634,8 @@ function renderProducts() {
 function resetSaleForm() {
   editingSaleId = "";
   el.salePayment.value = "cash";
+  el.saleDiscountType.value = "amount";
+  el.saleDiscountValue.value = "0";
   el.saleDateTime.value = formatDateTimeInput(new Date());
   el.saleHeading.textContent = "POS · Tạo đơn";
   el.saleDescription.textContent = "Chọn sản phẩm và mức giá cho từng dòng.";
@@ -782,11 +801,27 @@ function collectOrderItems() {
 function updateSalePreview() {
   const items = collectOrderItems();
   el.orderEmpty.classList.toggle("hidden", !!el.orderItems.children.length);
+  const amounts = orderAmounts(items);
+  document.querySelector("#orderSubtotal").textContent = formatMoney(amounts.subtotal);
+  document.querySelector("#orderAdjustmentRow").classList.toggle("hidden", !amounts.adjustment);
+  document.querySelector("#orderAdjustment").textContent = formatMoney(amounts.adjustment);
+  document.querySelector("#orderDiscount").textContent = formatMoney(amounts.discount);
+  document.querySelector("#orderPayable").textContent = formatMoney(amounts.total);
+  document.querySelector("#discountValueLabel").textContent = amounts.type === "percent"
+    ? "Phần trăm giảm (%)" : "Số tiền giảm (đ)";
+  el.saleDiscountValue.step = amounts.type === "percent" ? "0.01" : "1";
+  el.saleDiscountValue.max = amounts.type === "percent" ? "100" : String(amounts.base);
+  el.discountError.textContent = amounts.error;
+  el.saleSubmit.disabled = !!amounts.error;
+  if (amounts.error) {
+    showSaleMessage(amounts.error);
+    return;
+  }
   if (items.length === 0) {
     showSaleMessage("Nhập sản phẩm để tạo đơn.");
     return;
   }
-  showSaleMessage(`Tạm tính: ${formatMoney(orderTotal(items))} · ${items.length} sản phẩm.`);
+  showSaleMessage(`Khách phải trả: ${formatMoney(amounts.total)} · ${items.length} sản phẩm.`);
 }
 
 function showSaleMessage(message) {
@@ -1041,6 +1076,7 @@ function renderReportPaymentOrders(rangeSales, label) {
                 <p class="item-title">${escapeHtml(saleTitle(items))}</p>
                 <p class="item-meta">${formatDateTime(sale.createdAt)} · ${formatMoney(sale.total)}</p>
                 <p class="item-meta">${escapeHtml(items.map((item) => `${item.name} × ${item.qty} · ${formatMoney(item.price)}/sp`).join(" · "))}</p>
+          ${sale.discountAmount > 0 ? `<p class="item-meta">Giảm giá ${sale.discountType === "percent" ? escapeHtml(sale.discountValue) + "% · " : ""}${formatMoney(sale.discountAmount)}</p>` : ""}
               </div>
             </article>
           `;
@@ -1066,6 +1102,7 @@ function renderHistory() {
           <p class="item-title">${sale.sapoOrderNumber ? escapeHtml(sale.sapoOrderNumber) + " · " : ""}${escapeHtml(saleTitle(items))}</p>
           <p class="item-meta">${formatDateTime(sale.createdAt)} · ${formatMoney(sale.total)} · ${paymentMethodLabel(method)}</p>
           <p class="item-meta">${escapeHtml(items.map((item) => `${item.name} × ${item.qty} · ${formatMoney(item.price)}/sp`).join(" · "))}</p>
+          ${sale.discountAmount > 0 ? `<p class="item-meta">Giảm giá ${sale.discountType === "percent" ? escapeHtml(sale.discountValue) + "% · " : ""}${formatMoney(sale.discountAmount)}</p>` : ""}
         </div>
         <div class="item-actions">
           <button class="small-button" type="button" data-edit-sale="${escapeAttribute(sale.id)}">Sửa</button>
@@ -1128,6 +1165,8 @@ function editSale(id) {
   el.saleHeading.textContent = "Sửa đơn bán";
   el.saleDescription.textContent = "Các dòng đã lưu giữ nguyên đơn giá ban đầu.";
   el.salePayment.value = sale.paymentMethod || "cash";
+  el.saleDiscountType.value = sale.discountType === "percent" ? "percent" : "amount";
+  el.saleDiscountValue.value = sale.discountValue ?? 0;
   el.saleDateTime.value = formatDateTimeInput(new Date(sale.createdAt || Date.now()));
   el.saleSubmit.textContent = "Cập nhật đơn";
   el.cancelSaleEdit.classList.remove("hidden");
@@ -1272,12 +1311,25 @@ function saleTitle(items) {
   return `${items.length} sản phẩm`;
 }
 
-function orderTotal(items) {
+function orderAmounts(items) {
   const saved = state.sales.find((sale) => sale.id === editingSaleId);
-  const lineTotal = sumOrderItems(items);
-  if (!saved || !saved.sapoOrderNumber) return lineTotal;
-  const adjustment = saved.total - sumOrderItems(saleItems(saved));
-  return Math.max(0, lineTotal + adjustment);
+  const subtotal = sumOrderItems(items);
+  let adjustment = saved?.orderAdjustment ?? 0;
+  if (saved?.sapoOrderNumber && saved.orderAdjustment == null) {
+    adjustment = saved.total - sumOrderItems(saleItems(saved));
+  }
+  const base = Math.max(0, subtotal + adjustment);
+  const type = el.saleDiscountType.value;
+  const value = el.saleDiscountValue.valueAsNumber;
+  let error = "";
+  if (!Number.isFinite(value) || value < 0) error = "Nhập mức giảm giá từ 0 trở lên.";
+  else if (type === "percent" && (value > 100 || Math.abs(value * 100 - Math.round(value * 100)) > 0.000001)) {
+    error = "Phần trăm giảm phải từ 0 đến 100, tối đa 2 chữ số thập phân.";
+  } else if (type === "amount" && (!Number.isSafeInteger(value) || value > base)) {
+    error = "Số tiền giảm phải là số nguyên và không vượt số tiền đơn hàng.";
+  }
+  const discount = error ? 0 : type === "percent" ? Math.round(base * value / 100) : value;
+  return { subtotal, adjustment, base, type, value, discount, total: base - discount, error };
 }
 
 function sumOrderItems(items) {
