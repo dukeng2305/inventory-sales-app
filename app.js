@@ -132,8 +132,8 @@ el.productForm.addEventListener("submit", (event) => {
     return;
   }
   const stock = el.productStock.value === "" ? null : el.productStock.valueAsNumber;
-  if (stock !== null && !validPrice(stock)) {
-    el.productStatus.textContent = "Số lượng tồn kho phải là số nguyên từ 0 trở lên.";
+  if (stock !== null && !Number.isSafeInteger(stock)) {
+    el.productStatus.textContent = "Số lượng tồn kho phải là số nguyên.";
     return;
   }
   const details = { name, vietnamesePrice, internationalPrice, stock };
@@ -350,6 +350,10 @@ el.importFile.addEventListener("change", async () => {
 
   try {
     const payload = JSON.parse(await file.text());
+    if (payload?.source === "sapo-stock") {
+      importSapoStock(payload);
+      return;
+    }
     if (!payload || !Array.isArray(payload.sales)) {
       alert("File sao lưu không hợp lệ.");
       return;
@@ -423,6 +427,38 @@ el.importFile.addEventListener("change", async () => {
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
+function importSapoStock(payload) {
+  const { branchId: targetBranch, items } = payload;
+  if (!Object.hasOwn(BRANCH_LABELS, targetBranch) || !Array.isArray(items) || !items.length ||
+      !items.every((item) => typeof item?.id === "string" && Number.isSafeInteger(item.stock)) ||
+      new Set(items.map((item) => item.id)).size !== items.length) {
+    alert("File cập nhật tồn kho không hợp lệ.");
+    return;
+  }
+
+  const counts = new Map(items.map(({ id, stock }) => [id, stock]));
+  const matching = state.products.filter((product) =>
+    recordBranch(product) === targetBranch && counts.has(product.id));
+  const changes = matching.filter((product) => product.stock !== counts.get(product.id));
+  const missing = items.length - matching.length;
+  const branchLabel = BRANCH_LABELS[targetBranch];
+  const note = missing ? ` ${missing} mã chưa có trong danh mục ${branchLabel}.` : "";
+  if (!changes.length) {
+    el.importStatus.textContent = `Không có số tồn cần cập nhật.${note}`;
+    return;
+  }
+  if (!confirm(`Cập nhật số tồn của ${changes.length} sản phẩm tại ${branchLabel}?${note}`)) return;
+  const updated = new Set(changes.map((product) => product.id));
+  const next = { ...state, products: state.products.map((product) =>
+    recordBranch(product) === targetBranch && updated.has(product.id)
+      ? { ...product, stock: counts.get(product.id) } : product) };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  state.products = next.products;
+  closeProductForm();
+  renderProducts();
+  el.importStatus.textContent = `Đã cập nhật số tồn của ${changes.length} sản phẩm tại ${branchLabel}.${note}`;
+}
+
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
@@ -470,7 +506,7 @@ function readProducts(products) {
     const internationalPrice = product.internationalPrice ?? product.wholesalePrice;
     if (validPrice(vietnamesePrice) && validPrice(internationalPrice)) {
       result.push({ id: product.id, branchId: recordBranch(product), name: product.name, vietnamesePrice, internationalPrice,
-        stock: validPrice(product.stock) ? product.stock : null });
+        stock: Number.isSafeInteger(product.stock) ? product.stock : null });
     }
   }
   return result;
