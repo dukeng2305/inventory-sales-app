@@ -5,6 +5,7 @@ create table if not exists public.inventory_staff (
   owner_id uuid not null references public.inventory_store(owner_id) on delete cascade,
   check (user_id <> owner_id)
 );
+alter table public.inventory_staff add column if not exists display_name text;
 alter table public.inventory_staff enable row level security;
 revoke all on public.inventory_staff from public, anon, authenticated;
 
@@ -44,6 +45,7 @@ language plpgsql security definer set search_path = ''
 as $$
 declare
   store_owner uuid;
+  staff_name text;
   data jsonb;
   products jsonb;
   order_items jsonb := '[]'::jsonb;
@@ -67,7 +69,7 @@ declare
   product_index integer;
   saved_order jsonb;
 begin
-  select owner_id into store_owner from public.inventory_staff where user_id = auth.uid();
+  select owner_id, display_name into store_owner, staff_name from public.inventory_staff where user_id = auth.uid();
   if not found then raise exception 'Tài khoản chưa được cấp quyền bán hàng.'; end if;
 
   select snapshot into data from public.inventory_store where owner_id = store_owner for update;
@@ -132,7 +134,7 @@ begin
   end case;
 
   saved_order := jsonb_build_object(
-    'id', order_id, 'staffId', auth.uid(), 'branchId', branch, 'currency', unit,
+    'id', order_id, 'staffId', auth.uid(), 'staffName', staff_name, 'branchId', branch, 'currency', unit,
     'createdAt', now(), 'status', 'paid', 'items', order_items, 'qty', units,
     'total', subtotal - discount, 'discountType', discount_type, 'discountValue', discount_value,
     'discountAmount', discount, 'paymentMethod', payment, 'stockQuantities', stock_changes

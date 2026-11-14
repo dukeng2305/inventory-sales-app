@@ -10,14 +10,18 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") return new Response(null, { status: 405, headers });
 
   const body = await request.json().catch(() => null);
-  const email = Deno.env.get("INVENTORY_ADMIN_EMAIL");
-  const url = Deno.env.get("SUPABASE_URL");
-  const key = Deno.env.get("SUPABASE_ANON_KEY");
-  if (!email || !url || !key) return new Response(null, { status: 503, headers });
-  if (body?.username !== "duongngo" || typeof body?.password !== "string" ||
-      !body.password || body.password.length > 1024) {
+  if (typeof body?.password !== "string" || !body.password || body.password.length > 1024) {
     return new Response(null, { status: 401, headers });
   }
+
+  const emailKey = body.username === "duongngo" ? "INVENTORY_ADMIN_EMAIL"
+    : body.username === "trantrang" ? "INVENTORY_TRANTRANG_EMAIL" : null;
+  const email = emailKey && Deno.env.get(emailKey);
+  if (!email) return new Response(null, { status: 401, headers });
+
+  const url = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!url || !key) return new Response(null, { status: 503, headers });
 
   try {
     const response = await fetch(url + "/auth/v1/token?grant_type=password", {

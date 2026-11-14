@@ -1070,6 +1070,7 @@ function renderReports() {
 
   el.reportLabel.textContent = label;
   el.reportRevenue.textContent = formatSalesRevenue(rangeSales);
+  renderStaffRevenue(rangeSales);
   const byCustomer = customerRevenue(rangeSales);
   for (const [group, totals] of Object.entries(byCustomer)) {
     document.querySelector(`#${group}Revenue`).textContent = formatRevenue(totals.VND, totals.USD);
@@ -1526,6 +1527,22 @@ function formatSalesRevenue(sales) {
 
 function paymentRevenue(sales, method) {
   return formatSalesRevenue(sales.filter((sale) => (sale.paymentMethod || "cash") === method));
+}
+
+function renderStaffRevenue(sales) {
+  const groups = new Map();
+  for (const sale of sales) {
+    if (typeof sale.staffId !== "string" || !sale.staffId) continue;
+    if (!groups.has(sale.staffId)) groups.set(sale.staffId, []);
+    groups.get(sale.staffId).push(sale);
+  }
+  const rows = [...groups].map(([id, orders]) => {
+    const name = orders.find((order) => order.staffName)?.staffName || `Nhân viên ${id.slice(0, 8)}`;
+    return { name, count: orders.length, revenue: formatSalesRevenue(orders) };
+  }).sort((a, b) => a.name.localeCompare(b.name, "vi"));
+  document.querySelector("#staffRevenue").innerHTML = rows.map(({ name, count, revenue }) =>
+    `<div><dt>${escapeHtml(name)} · ${count} đơn</dt><dd>${escapeHtml(revenue)}</dd></div>`
+  ).join("") || "<div><dt>Chưa có đơn của nhân viên trong kỳ này.</dt></div>";
 }
 
 function customerRevenue(sales) {
