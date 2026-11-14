@@ -590,9 +590,17 @@ async function saveState(nextState) {
 
 window.inventorySharedSnapshot = () => state;
 window.inventoryRestoreLocal = () => window.inventoryApplyShared(loadState());
+window.inventorySetStaffBranch = (branch) => {
+  const changed = activeBranch !== branch;
+  el.branchSelect.disabled = true;
+  activeBranch = branch;
+  el.branchSelect.value = branch || "";
+  return changed;
+};
 window.inventorySetStaffMode = (enabled) => {
   const changed = document.body.classList.contains("staff-mode") !== enabled;
   document.body.classList.toggle("staff-mode", enabled);
+  el.branchSelect.disabled = enabled;
   document.querySelectorAll("[data-owner-only]").forEach((element) => {
     element.classList.toggle("hidden", enabled);
   });

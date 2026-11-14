@@ -105,6 +105,12 @@
             <button id="syncSignOut" class="ghost-button" type="button" hidden>Đăng xuất</button>
             <p id="syncStatus" role="status"></p>
           </section>
+          <section id="staffManagement" hidden>
+            <h2>Chi nhánh nhân viên</h2>
+            <button class="ghost-button" id="reloadStaff" type="button">Tải danh sách nhân viên</button>
+            <div id="staffAssignments"></div>
+            <p id="staffAssignmentStatus" role="status"></p>
+          </section>
         </section>
 
         <!-- TAB: BÁN HÀNG -->
@@ -363,8 +369,8 @@
         <button class="primary-button" id="completePicker" type="button">Hoàn tất</button>
       </footer>
     </dialog>
-    <script src="app.js?v=40"></script>
+    <script src="app.js?v=41"></script>
     <script src="sync-config.js?v=33"></script>
-    <script src="sync.js?v=39"></script>
+    <script src="sync.js?v=41"></script>
   </body>
 </html>

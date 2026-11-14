@@ -17,6 +17,10 @@
   const status = document.querySelector("#syncStatus");
   const initialize = document.querySelector("#syncInitialize");
   const signOut = document.querySelector("#syncSignOut");
+  const staffManagement = document.querySelector("#staffManagement");
+  const staffAssignments = document.querySelector("#staffAssignments");
+  const staffAssignmentStatus = document.querySelector("#staffAssignmentStatus");
+  let assignedBranch;
   section.classList.remove("hidden");
 
   async function request(path, body, token = session?.access_token) {
@@ -34,7 +38,7 @@
         error.sessionExpired = ["refresh_token_not_found", "refresh_token_already_used",
           "session_not_found", "session_expired", "user_not_found", "user_banned"].includes(details.error_code);
       }
-      if (path === "/rest/v1/rpc/inventory_staff_checkout") {
+      if (path === "/rest/v1/rpc/inventory_staff_checkout" || path === "/rest/v1/rpc/inventory_staff_assign") {
         const details = await response.json().catch(() => ({}));
         if (details?.code === "P0001") error.message = details.message;
         error.rejected = response.status >= 400 && response.status < 500;
@@ -77,13 +81,22 @@
     const wasStaff = staff;
     staff = rows.length === 0;
     window.inventorySetStaffMode(staff);
-    if (row.snapshot && (row.revision !== revision || wasStaff !== staff)) {
-      window.inventoryApplyShared(row.snapshot, staff && wasStaff && revision !== undefined);
+    let branchChanged = false;
+    if (staff) {
+      const nextBranch = ["ha-noi", "ninh-binh"].includes(row.branchId) ? row.branchId : null;
+      branchChanged = assignedBranch !== nextBranch;
+      assignedBranch = nextBranch;
+      window.inventorySetStaffBranch(assignedBranch);
+    }
+    staffManagement.hidden = staff;
+    if (row.snapshot && (row.revision !== revision || wasStaff !== staff || branchChanged)) {
+      window.inventoryApplyShared(row.snapshot, staff && wasStaff && revision !== undefined && !branchChanged);
     }
     revision = row.revision;
-    online = true;
+    online = !staff || assignedBranch !== null;
     initialize.hidden = staff || row.snapshot !== null;
-    status.textContent = row.snapshot ? "Đã đồng bộ dữ liệu chung." : "Kho chung chưa có dữ liệu.";
+    status.textContent = staff && !assignedBranch ? "Chờ admin gán chi nhánh cho tài khoản."
+      : row.snapshot ? "Đã đồng bộ dữ liệu chung." : "Kho chung chưa có dữ liệu.";
   }
 
   async function refresh() {
@@ -151,6 +164,9 @@
     initialize.hidden = true;
     signOut.hidden = true;
     checkoutPending = undefined;
+    staffManagement.hidden = true;
+    staffAssignments.replaceChildren();
+    assignedBranch = undefined;
     if (staff) {
       window.inventoryApplyShared({ products: [], sales: [], purchases: [] });
       document.querySelector('[data-tab="more"]').click();
@@ -202,6 +218,55 @@
       busy = false;
     }
   }
+
+  async function loadStaff() {
+    if (!session || staff) return;
+    staffAssignmentStatus.textContent = "Đang tải…";
+    try {
+      const employees = await request("/rest/v1/rpc/inventory_staff_list", {}, await token());
+      staffAssignments.replaceChildren();
+      for (const employee of employees) {
+        const form = document.createElement("form");
+        form.className = "product-form";
+        const label = document.createElement("label");
+        label.textContent = employee.display_name || `Nhân viên ${employee.user_id.slice(0, 8)}`;
+        const select = document.createElement("select");
+        select.required = true;
+        for (const [value, text] of [["", "Chưa gán chi nhánh"], ["ha-noi", "Hà Nội"], ["ninh-binh", "Ninh Bình"]]) {
+          select.add(new Option(text, value));
+        }
+        select.value = employee.branch_id || "";
+        label.append(select);
+        const button = document.createElement("button");
+        button.className = "primary-button";
+        button.textContent = "Lưu chi nhánh";
+        button.type = "submit";
+        form.append(label, button);
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          if (busy || !session || staff) return;
+          busy = true;
+          button.disabled = true;
+          try {
+            await request("/rest/v1/rpc/inventory_staff_assign", {
+              employee_id: employee.user_id, target_branch: select.value,
+            }, await token());
+            staffAssignmentStatus.textContent = "Đã cập nhật chi nhánh nhân viên.";
+          } catch (error) {
+            staffAssignmentStatus.textContent = error.message;
+          } finally {
+            busy = false;
+            button.disabled = false;
+          }
+        });
+        staffAssignments.append(form);
+      }
+      staffAssignmentStatus.textContent = employees.length ? "" : "Chưa có tài khoản nhân viên.";
+    } catch {
+      staffAssignmentStatus.textContent = "Chưa tải được danh sách. Hãy thử lại.";
+    }
+  }
+  document.querySelector("#reloadStaff").addEventListener("click", loadStaff);
 
   window.inventoryCloud = { commit, checkout, isStaff: () => staff };
   form.addEventListener("submit", async (event) => {
