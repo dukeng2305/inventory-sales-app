@@ -9,6 +9,7 @@
   let timer;
   let changes;
   const endpoint = url.replace(/\/$/, "");
+  const sessionKey = `inventory-sales-session:${endpoint}`;
   const section = document.querySelector("#syncSection");
   const form = document.querySelector("#syncLogin");
   const status = document.querySelector("#syncStatus");
@@ -24,8 +25,25 @@
       method: body ? "POST" : "GET", body: body ? JSON.stringify(body) : undefined,
       headers, cache: "no-store", signal: AbortSignal.timeout(12000),
     });
-    if (!response.ok) throw new Error("Không kết nối được với dữ liệu chung.");
+    if (!response.ok) {
+      const error = new Error("Không kết nối được với dữ liệu chung.");
+      if (path.startsWith("/auth/v1/token?grant_type=refresh_token")) {
+        const details = await response.json().catch(() => ({}));
+        error.sessionExpired = ["refresh_token_not_found", "refresh_token_already_used",
+          "session_not_found", "session_expired", "user_not_found", "user_banned"].includes(details.error_code);
+      }
+      throw error;
+    }
     return response.json();
+  }
+
+  function saveSession(result) {
+    session = {
+      access_token: result.access_token,
+      refresh_token: result.refresh_token,
+      expiresAt: Date.now() + result.expires_in * 1000,
+    };
+    localStorage.setItem(sessionKey, JSON.stringify(session));
   }
 
   async function token() {
@@ -33,7 +51,7 @@
     const refreshed = await request("/auth/v1/token?grant_type=refresh_token", {
       refresh_token: session.refresh_token,
     }, "");
-    session = { ...refreshed, expiresAt: Date.now() + refreshed.expires_in * 1000 };
+    saveSession(refreshed);
     if (changes?.readyState === WebSocket.OPEN) changes.send(JSON.stringify({ topic: "realtime:inventory", event: "access_token",
       payload: { access_token: session.access_token }, ref: "auth" }));
     return session.access_token;
@@ -56,9 +74,13 @@
     busy = true;
     try {
       await read();
-    } catch {
+    } catch (error) {
       online = false;
-      status.textContent = "Mất kết nối. Đang xem dữ liệu đã tải.";
+      if (error.sessionExpired) {
+        endSession("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+      } else {
+        status.textContent = "Chưa kết nối được với kho chung. App sẽ tự thử lại.";
+      }
     } finally {
       busy = false;
     }
@@ -70,15 +92,48 @@
     socketUrl.searchParams.set("apikey", publishableKey);
     socketUrl.searchParams.set("vsn", "1.0.0");
     try { changes = new WebSocket(socketUrl); } catch { return; }
-    changes.addEventListener("open", () => changes.send(JSON.stringify({
+    const socket = changes;
+    socket.addEventListener("open", () => {
+      if (socket !== changes || !session) return;
+      socket.send(JSON.stringify({
       topic: "realtime:inventory", event: "phx_join", ref: "join",
       payload: { access_token: session.access_token, config: {
         postgres_changes: [{ event: "UPDATE", schema: "public", table: "inventory_store" }],
       } },
-    })));
-    changes.addEventListener("message", (event) => {
+      }));
+    });
+    socket.addEventListener("message", (event) => {
       if (JSON.parse(event.data).event === "postgres_changes") refresh();
     });
+  }
+
+  function startSession() {
+    form.reset();
+    form.hidden = true;
+    signOut.hidden = false;
+    if (online) connectRealtime();
+    timer = setInterval(() => {
+      if (changes?.readyState === WebSocket.OPEN) changes.send(JSON.stringify({
+        topic: "phoenix", event: "heartbeat", payload: {}, ref: String(Date.now()),
+      }));
+      else if (online) connectRealtime();
+      refresh();
+    }, 5000);
+  }
+
+  function endSession(message) {
+    clearInterval(timer);
+    changes?.close();
+    changes = undefined;
+    session = undefined;
+    localStorage.removeItem(sessionKey);
+    online = false;
+    revision = undefined;
+    form.hidden = false;
+    initialize.hidden = true;
+    signOut.hidden = true;
+    window.inventoryRestoreLocal();
+    status.textContent = message;
   }
 
   async function commit(snapshot, initializing = false) {
@@ -114,17 +169,8 @@
       session = { ...login, expiresAt: Date.now() + login.expires_in * 1000 };
       revision = undefined;
       await read();
-      form.reset();
-      form.hidden = true;
-      signOut.hidden = false;
-      connectRealtime();
-      timer = setInterval(() => {
-        if (changes?.readyState === WebSocket.OPEN) changes.send(JSON.stringify({
-          topic: "phoenix", event: "heartbeat", payload: {}, ref: String(Date.now()),
-        }));
-        else connectRealtime();
-        refresh();
-      }, 5000);
+      saveSession(login);
+      startSession();
     } catch {
       session = undefined;
       online = false;
@@ -141,16 +187,21 @@
   });
   signOut.addEventListener("click", () => {
     if (busy) return;
-    clearInterval(timer);
-    changes?.close();
-    session = undefined;
-    online = false;
-    form.hidden = false;
-    initialize.hidden = true;
-    signOut.hidden = true;
-    window.inventoryRestoreLocal();
-    status.textContent = "Đã đăng xuất.";
+    endSession("Đã đăng xuất.");
   });
   window.addEventListener("online", refresh);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+  let savedSession;
+  try {
+    savedSession = JSON.parse(localStorage.getItem(sessionKey));
+  } catch {
+    localStorage.removeItem(sessionKey);
+  }
+  if (typeof savedSession?.access_token === "string" &&
+      typeof savedSession.refresh_token === "string" && Number.isFinite(savedSession.expiresAt)) {
+    session = savedSession;
+    status.textContent = "Đang kết nối lại với kho chung…";
+    startSession();
+    refresh();
+  }
 })();
