@@ -115,6 +115,12 @@
           </div>
 
           <form id="saleForm">
+            <label>Tiền tệ của đơn
+              <select id="saleCurrency">
+                <option value="VND">VND (₫)</option>
+                <option value="USD">USD ($)</option>
+              </select>
+            </label>
             <div class="pos-section-heading"><h2>Sản phẩm</h2></div>
             <div class="pos-empty" id="orderEmpty"><span aria-hidden="true">＋</span><p>Đơn hàng chưa có sản phẩm</p></div>
             <div class="order-items" id="orderItems"></div>
@@ -126,7 +132,7 @@
               <div class="discount-fields">
                 <label>Hình thức
                   <select id="saleDiscountType">
-                    <option value="amount">Theo số tiền (đ)</option>
+                    <option value="amount">Theo số tiền</option>
                     <option value="percent">Theo phần trăm (%)</option>
                   </select>
                 </label>
@@ -236,6 +242,15 @@
             </article>
           </div>
 
+          <section class="shift-payment-summary" aria-labelledby="customerRevenueHeading">
+            <h3 id="customerRevenueHeading">Doanh thu theo nhóm khách</h3>
+            <dl class="order-totals">
+              <div><dt>Khách Việt Nam</dt><dd id="vietnameseRevenue"></dd></div>
+              <div><dt>Khách nước ngoài</dt><dd id="internationalRevenue"></dd></div>
+              <div><dt>Chưa phân loại</dt><dd id="unclassifiedRevenue"></dd></div>
+            </dl>
+          </section>
+
           <p class="form-status" id="unknownRevenue"></p>
 
           <section class="shift-payment-summary" aria-label="Doanh thu theo ca và hình thức thanh toán">
@@ -344,7 +359,7 @@
         <button class="primary-button" id="completePicker" type="button">Hoàn tất</button>
       </footer>
     </dialog>
-    <script src="app.js?v=35"></script>
+    <script src="app.js?v=36"></script>
     <script src="sync-config.js?v=33"></script>
     <script src="sync.js?v=32"></script>
   </body>

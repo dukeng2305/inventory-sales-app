@@ -6,6 +6,9 @@ const currency = new Intl.NumberFormat("vi-VN", {
   maximumFractionDigits: 0,
 });
 
+const usdCurrency = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "USD", currencyDisplay: "code" });
+const saleCurrencyInput = document.querySelector("#saleCurrency");
+
 const DEFAULT_BRANCH = "ninh-binh";
 const BRANCH_LABELS = { "ninh-binh": "Ninh Bình", "ha-noi": "Hà Nội" };
 const BRANCH_KEY = "inventory-sales-active-branch";
@@ -250,6 +253,14 @@ el.saleDiscountType.addEventListener("change", () => {
   updateSalePreview();
 });
 el.saleDiscountValue.addEventListener("input", updateSalePreview);
+saleCurrencyInput.addEventListener("change", () => {
+  if (el.saleDiscountType.value === "amount") el.saleDiscountValue.value = "0";
+  for (const row of el.orderItems.children) {
+    row.querySelector('[data-field="price"]').value = "";
+    applyCatalogPrice(row);
+  }
+  updateSalePreview();
+});
 
 el.saleForm.addEventListener("input", (event) => {
   if (event.target.matches("[data-field]")) {
@@ -307,6 +318,7 @@ el.saleForm.addEventListener("submit", async (event) => {
     return;
   }
   const saleData = {
+    currency: saleCurrencyInput.value,
     items,
     productName: saleTitle(items),
     qty: sumOrderQty(items),
@@ -334,7 +346,7 @@ el.saleForm.addEventListener("submit", async (event) => {
       product.id === item.productId && recordBranch(product) === activeBranch)?.stock)).length;
   resetSaleForm();
   render();
-  showSaleMessage(`Đã ${editingSale ? "cập nhật" : "thanh toán"} đơn: ${formatMoney(total)}.${
+  showSaleMessage(`Đã ${editingSale ? "cập nhật" : "thanh toán"} đơn: ${formatMoney(total, nextSale.currency)}.${
     unknownCount ? ` ${unknownCount} dòng chưa có sản phẩm hoặc số tồn để tự động cập nhật kho.` : ""}`);
 
 });
@@ -671,6 +683,8 @@ function renderProducts() {
 
 function resetSaleForm() {
   editingSaleId = "";
+  saleCurrencyInput.value = "VND";
+  saleCurrencyInput.disabled = false;
   el.salePayment.value = "cash";
   el.saleDiscountType.value = "amount";
   el.saleDiscountValue.value = "0";
@@ -746,7 +760,8 @@ function renderPickerProducts() {
     total += count * product.vietnamesePrice;
   }
   el.pickerSelectedCount.textContent = qty ? `Đã chọn ${qty} sản phẩm` : "Chưa chọn sản phẩm";
-  el.pickerTotal.textContent = formatMoney(total);
+  el.pickerTotal.textContent = saleCurrencyInput.value === "USD"
+    ? "Nhập giá USD trong đơn" : formatMoney(total);
 }
 
 function completeProductPicker() {
@@ -762,7 +777,7 @@ function completeProductPicker() {
       input.value = input.valueAsNumber + qty;
     } else {
       el.orderItems.insertAdjacentHTML("beforeend", orderItemTemplate({
-        productId: product.id, name: product.name, price: product.vietnamesePrice, qty,
+        productId: product.id, name: product.name, price: saleCurrencyInput.value === "USD" ? "" : product.vietnamesePrice, qty,
       }));
     }
   }
@@ -773,7 +788,7 @@ function completeProductPicker() {
 function orderItemTemplate(item) {
   const saved = item.saved === true;
   const product = !saved && activeProducts().find((entry) => entry.id === item.productId);
-  const tier = item.priceTier || "vietnamese";
+  const tier = item.priceTier || (saved ? "" : "vietnamese");
   return `
     <div class="order-row"${saved ? ' data-saved="true"' : ""}>
       <input type="hidden" data-field="product" value="${escapeAttribute(product?.id || "")}" />
@@ -781,15 +796,15 @@ function orderItemTemplate(item) {
       <label class="name-field${product || saved ? " hidden" : ""}">Tên sản phẩm
         <input data-field="name" type="text" placeholder="Nhập tên sản phẩm" value="${escapeAttribute(item.name ?? "")}" ${product || saved ? "readonly" : "required"} />
       </label>
-      ${saved || !product ? "" : `<label class="tier-field">Giá theo khách
+      ${saved ? "" : `<label class="tier-field">Nhóm khách
         <select data-field="tier">
           <option value="vietnamese"${tier === "vietnamese" ? " selected" : ""}>Khách Việt Nam</option>
           <option value="international"${tier === "international" ? " selected" : ""}>Khách nước ngoài</option>
         </select>
       </label>`}
       <label>
-        ${saved ? "Đơn giá đã lưu" : "Đơn giá (đ)"}
-        <input data-field="price" type="number" inputmode="numeric" min="0" step="1" placeholder="0" value="${escapeAttribute(item.price ?? "")}" ${saved || product ? "readonly" : "required"} />
+        Đơn giá <span data-price-currency></span>
+        <input data-field="price" type="number" inputmode="decimal" min="0" step="any" placeholder="0" value="${escapeAttribute(item.price ?? "")}" ${saved ? "readonly" : "required"} />
       </label>
       <label class="order-quantity">
         Số lượng
@@ -807,7 +822,7 @@ function orderItemTemplate(item) {
 
 function applyCatalogPrice(row) {
   const product = activeProducts().find((entry) => entry.id === row.querySelector('[data-field="product"]').value);
-  if (!product) return;
+  if (!product || saleCurrencyInput.value === "USD") return;
   const tier = row.querySelector('[data-field="tier"]').value;
   row.querySelector('[data-field="price"]').value = tier === "international"
     ? product.internationalPrice : product.vietnamesePrice;
@@ -830,36 +845,45 @@ function collectOrderItems() {
       const qty = row.querySelector('[data-field="qty"]').valueAsNumber;
       const productId = row.dataset.saved ? row.querySelector("[data-saved-product]").value : row.querySelector('[data-field="product"]').value;
       const priceTier = row.querySelector('[data-field="tier"], [data-saved-tier]')?.value;
-      return { name, price, qty, ...(productId ? { productId, priceTier } : {}) };
+      return { name, price, qty, priceTier, ...(productId ? { productId } : {}) };
     })
     .filter((item, index) => item.name && Number.isSafeInteger(item.qty) && item.qty > 0 &&
-      (validPrice(item.price) || (el.orderItems.children[index].dataset.saved && Number.isFinite(item.price))));
+      (validOrderMoney(item.price, saleCurrencyInput.value) || (el.orderItems.children[index].dataset.saved && Number.isFinite(item.price))));
 }
 
 function updateSalePreview() {
   const items = collectOrderItems();
   el.orderEmpty.classList.toggle("hidden", !!el.orderItems.children.length);
   const amounts = orderAmounts(items);
-  document.querySelector("#orderSubtotal").textContent = formatMoney(amounts.subtotal);
+  const unit = saleCurrencyInput.value;
+  el.orderItems.querySelectorAll("[data-price-currency]").forEach((label) => {
+    label.textContent = `(${unit})`;
+  });
+  document.querySelector("#orderSubtotal").textContent = formatMoney(amounts.subtotal, unit);
   document.querySelector("#orderAdjustmentRow").classList.toggle("hidden", !amounts.adjustment);
-  document.querySelector("#orderAdjustment").textContent = formatMoney(amounts.adjustment);
-  document.querySelector("#orderDiscount").textContent = formatMoney(amounts.discount);
-  document.querySelector("#orderPayable").textContent = formatMoney(amounts.total);
+  document.querySelector("#orderAdjustment").textContent = formatMoney(amounts.adjustment, unit);
+  document.querySelector("#orderDiscount").textContent = formatMoney(amounts.discount, unit);
+  document.querySelector("#orderPayable").textContent = formatMoney(amounts.total, unit);
   document.querySelector("#discountValueLabel").textContent = amounts.type === "percent"
-    ? "Phần trăm giảm (%)" : "Số tiền giảm (đ)";
-  el.saleDiscountValue.step = amounts.type === "percent" ? "0.01" : "1";
+    ? "Phần trăm giảm (%)" : `Số tiền giảm (${unit})`;
+  el.saleDiscountValue.step = amounts.type === "percent" || unit === "USD" ? "0.01" : "1";
   el.saleDiscountValue.max = amounts.type === "percent" ? "100" : String(amounts.base);
   el.discountError.textContent = amounts.error;
-  el.saleSubmit.disabled = !!amounts.error;
+  const incomplete = items.length !== el.orderItems.children.length;
+  el.saleSubmit.disabled = !!amounts.error || incomplete;
   if (amounts.error) {
     showSaleMessage(amounts.error);
+    return;
+  }
+  if (incomplete) {
+    showSaleMessage(`Nhập đơn giá ${unit} và số lượng hợp lệ cho từng dòng.`);
     return;
   }
   if (items.length === 0) {
     showSaleMessage("Nhập sản phẩm để tạo đơn.");
     return;
   }
-  showSaleMessage(`Khách phải trả: ${formatMoney(amounts.total)} · ${items.length} sản phẩm.`);
+  showSaleMessage(`Khách phải trả: ${formatMoney(amounts.total, unit)} · ${items.length} sản phẩm.`);
 }
 
 function showSaleMessage(message) {
@@ -907,7 +931,7 @@ function renderSummary() {
     <article class="list-item recent-sale">
       <div><p class="item-title">${escapeHtml(saleTitle(saleItems(sale)))}</p>
       <p class="item-meta">${formatDateTime(sale.createdAt)} · ${paymentMethodLabel(sale.paymentMethod)}</p></div>
-      <strong>${formatMoney(sale.total)}</strong>
+      <strong>${formatMoney(sale.total, orderCurrency(sale))}</strong>
     </article>
   `).join("") || '<div class="empty">Chưa có đơn hàng. Tạo đơn để bắt đầu bán hàng.</div>';
   renderOverviewChart();
@@ -944,22 +968,25 @@ function renderOverviewChart() {
     const date = new Date(sale.createdAt);
     if (date >= start && date < end) {
       sales.push(sale);
-      current[bucket(date)] += Number(sale.total || 0);
-    } else if (date >= previous && date < start) {
+      if (orderCurrency(sale) === "VND") current[bucket(date)] += Number(sale.total || 0);
+    } else if (date >= previous && date < start && orderCurrency(sale) === "VND") {
       prior[bucket(date)] += Number(sale.total || 0);
     }
   }
   const total = sumRevenue(sales);
   const priorTotal = prior.reduce((sum, value) => sum + value, 0);
   const delta = priorTotal ? ((total - priorTotal) / priorTotal * 100) : null;
-  el.todayRevenue.textContent = formatMoney(total);
+  el.todayRevenue.textContent = formatSalesRevenue(sales);
   el.todayOrders.textContent = sales.length;
   el.todayItems.textContent = sales.reduce((sum, sale) => sum + sumOrderQty(saleItems(sale)), 0);
-  document.querySelector("#averageOrder").textContent = formatMoney(sales.length ? total / sales.length : 0);
+  const usdCount = sales.filter((sale) => orderCurrency(sale) === "USD").length;
+  const vndCount = sales.length - usdCount;
+  document.querySelector("#averageOrder").textContent = formatRevenue(
+    vndCount ? total / vndCount : 0, usdCount ? sumRevenue(sales, "USD") / usdCount : 0);
   el.overviewDate.textContent = reportRangeLabel(start, new Date(end - 1));
-  document.querySelector("#revenueChange").textContent = delta === null ? "So với kỳ trước"
-    : `${delta > 0 ? "+" : ""}${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 }).format(delta)}% so với kỳ trước`;
-  const caption = `Kỳ trước: ${formatMoney(priorTotal)} · ${overviewPeriod === "day" ? "Mỗi điểm là 3 giờ" : "Mỗi điểm là 1 ngày"}`;
+  document.querySelector("#revenueChange").textContent = delta === null ? "Doanh thu VND so với kỳ trước"
+    : `${delta > 0 ? "+" : ""}${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 }).format(delta)}% VND so với kỳ trước`;
+  const caption = `Biểu đồ VND · Kỳ trước: ${formatMoney(priorTotal)} · ${overviewPeriod === "day" ? "Mỗi điểm là 3 giờ" : "Mỗi điểm là 1 ngày"}`;
   document.querySelector("#chartCaption").textContent = caption;
   canvas.setAttribute("aria-label", `Doanh thu hiện tại ${formatMoney(total)}. ${caption}`);
 
@@ -1028,19 +1055,23 @@ function renderReports() {
   const afternoonSales = salesInShift(rangeSales, "afternoon");
 
   el.reportLabel.textContent = label;
-  el.reportRevenue.textContent = formatMoney(totalRevenue);
+  el.reportRevenue.textContent = formatSalesRevenue(rangeSales);
+  const byCustomer = customerRevenue(rangeSales);
+  for (const [group, totals] of Object.entries(byCustomer)) {
+    document.querySelector(`#${group}Revenue`).textContent = formatRevenue(totals.VND, totals.USD);
+  }
   el.reportOrders.textContent = `${rangeSales.length} đơn bán`;
-  el.morningCashRevenue.textContent = formatMoney(sumRevenueByPayment(morningSales, "cash"));
-  el.morningTransferRevenue.textContent = formatMoney(sumRevenueByPayment(morningSales, "transfer"));
+  el.morningCashRevenue.textContent = paymentRevenue(morningSales, "cash");
+  el.morningTransferRevenue.textContent = paymentRevenue(morningSales, "transfer");
   el.morningOrders.textContent = `${morningSales.length} đơn`;
-  el.afternoonCashRevenue.textContent = formatMoney(sumRevenueByPayment(afternoonSales, "cash"));
-  el.afternoonTransferRevenue.textContent = formatMoney(sumRevenueByPayment(afternoonSales, "transfer"));
+  el.afternoonCashRevenue.textContent = paymentRevenue(afternoonSales, "cash");
+  el.afternoonTransferRevenue.textContent = paymentRevenue(afternoonSales, "transfer");
   el.afternoonOrders.textContent = `${afternoonSales.length} đơn`;
-  el.cashRevenue.textContent = formatMoney(sumRevenueByPayment(rangeSales, "cash"));
-  el.transferRevenue.textContent = formatMoney(sumRevenueByPayment(rangeSales, "transfer"));
-  const unknownRevenue = sumRevenueByPayment(rangeSales, "unknown");
+  el.cashRevenue.textContent = paymentRevenue(rangeSales, "cash");
+  el.transferRevenue.textContent = paymentRevenue(rangeSales, "transfer");
+  const unknownRevenue = paymentRevenue(rangeSales, "unknown");
   document.querySelector("#unknownRevenue").textContent = rangeSales.some((sale) => sale.paymentMethod === "unknown")
-    ? `Chưa rõ hình thức thanh toán: ${formatMoney(unknownRevenue)}` : "";
+    ? `Chưa rõ hình thức thanh toán: ${unknownRevenue}` : "";
   renderReportPaymentOrders(rangeSales, label);
 
   // Profit section
@@ -1048,9 +1079,9 @@ function renderReports() {
   el.reportPurchaseCount.textContent = `${rangePurchases.length} lần nhập`;
   el.reportProfit.textContent = formatMoney(profit);
   el.reportProfit.classList.toggle("profit-negative", profit < 0);
-  el.reportProfitNote.textContent = profit >= 0
-    ? `Lãi ${formatMoney(profit)}`
-    : `Lỗ ${formatMoney(Math.abs(profit))}`;
+  el.reportProfitNote.textContent = rangeSales.some((sale) => orderCurrency(sale) === "USD")
+    ? "Lợi nhuận tính trên doanh thu và chi phí VND"
+    : profit >= 0 ? `Lãi ${formatMoney(profit)}` : `Lỗ ${formatMoney(Math.abs(profit))}`;
 
   // Top products
   const byProduct = new Map();
@@ -1060,15 +1091,16 @@ function renderReports() {
       const searchText = normalizeText(`${item.name} ${item.price}`);
       if (filter && !searchText.includes(filter)) return;
 
-      const key = `${item.name}__${item.price}`;
-      const current = byProduct.get(key) || { name: item.name, price: item.price, qty: 0, total: 0 };
+      const unit = orderCurrency(sale);
+      const key = JSON.stringify([item.name, item.price, unit]);
+      const current = byProduct.get(key) || { name: item.name, price: item.price, unit, qty: 0, total: 0 };
       current.qty += item.qty;
       current.total += item.price * item.qty;
       byProduct.set(key, current);
     });
   });
 
-  const rows = [...byProduct.values()].sort((a, b) => b.total - a.total);
+  const rows = [...byProduct.values()].sort((a, b) => b.unit.localeCompare(a.unit) || b.total - a.total);
 
   el.topProducts.innerHTML = rows.length
     ? rows
@@ -1076,9 +1108,9 @@ function renderReports() {
           <article class="list-item product-report-item">
             <div>
               <p class="item-title">${escapeHtml(item.name)}</p>
-              <p class="item-meta">Giá ${formatMoney(item.price)} · Đã bán ${item.qty}</p>
+              <p class="item-meta">Giá ${formatMoney(item.price, item.unit)} · Đã bán ${item.qty}</p>
             </div>
-            <strong>${formatMoney(item.total)}</strong>
+            <strong>${formatMoney(item.total, item.unit)}</strong>
           </article>
         `)
         .join("")
@@ -1113,9 +1145,9 @@ function renderReportPaymentOrders(rangeSales, label) {
             <article class="list-item sale-item ${selectedReportPayment}">
               <div>
                 <p class="item-title">${escapeHtml(saleTitle(items))}</p>
-                <p class="item-meta">${formatDateTime(sale.createdAt)} · ${formatMoney(sale.total)}</p>
-                <p class="item-meta">${escapeHtml(items.map((item) => `${item.name} × ${item.qty} · ${formatMoney(item.price)}/sp`).join(" · "))}</p>
-          ${sale.discountAmount > 0 ? `<p class="item-meta">Giảm giá ${sale.discountType === "percent" ? escapeHtml(sale.discountValue) + "% · " : ""}${formatMoney(sale.discountAmount)}</p>` : ""}
+                <p class="item-meta">${formatDateTime(sale.createdAt)} · ${formatMoney(sale.total, orderCurrency(sale))}</p>
+                <p class="item-meta">${escapeHtml(items.map((item) => `${item.name} × ${item.qty} · ${formatMoney(item.price, orderCurrency(sale))}/sp`).join(" · "))}</p>
+          ${sale.discountAmount > 0 ? `<p class="item-meta">Giảm giá ${sale.discountType === "percent" ? escapeHtml(sale.discountValue) + "% · " : ""}${formatMoney(sale.discountAmount, orderCurrency(sale))}</p>` : ""}
               </div>
             </article>
           `;
@@ -1139,9 +1171,9 @@ function renderHistory() {
       <article class="list-item sale-item ${method}${sale.status === "cancelled" ? " cancelled-sale" : ""}">
         <div>
           <p class="item-title">${sale.sapoOrderNumber ? escapeHtml(sale.sapoOrderNumber) + " · " : ""}${escapeHtml(saleTitle(items))}</p>
-          <p class="item-meta">${formatDateTime(sale.createdAt)} · ${formatMoney(sale.total)} · ${paymentMethodLabel(method)}</p>
-          <p class="item-meta">${escapeHtml(items.map((item) => `${item.name} × ${item.qty} · ${formatMoney(item.price)}/sp`).join(" · "))}</p>
-          ${sale.discountAmount > 0 ? `<p class="item-meta">Giảm giá ${sale.discountType === "percent" ? escapeHtml(sale.discountValue) + "% · " : ""}${formatMoney(sale.discountAmount)}</p>` : ""}
+          <p class="item-meta">${formatDateTime(sale.createdAt)} · ${formatMoney(sale.total, orderCurrency(sale))} · ${paymentMethodLabel(method)}</p>
+          <p class="item-meta">${escapeHtml(items.map((item) => `${item.name} × ${item.qty} · ${formatMoney(item.price, orderCurrency(sale))}/sp`).join(" · "))}</p>
+          ${sale.discountAmount > 0 ? `<p class="item-meta">Giảm giá ${sale.discountType === "percent" ? escapeHtml(sale.discountValue) + "% · " : ""}${formatMoney(sale.discountAmount, orderCurrency(sale))}</p>` : ""}
         </div>
         <div class="item-actions">
           ${sale.status === "cancelled"
@@ -1205,6 +1237,8 @@ function editSale(id) {
   if (!sale || sale.status === "cancelled") return;
 
   editingSaleId = sale.id;
+  saleCurrencyInput.value = orderCurrency(sale);
+  saleCurrencyInput.disabled = true;
   renderOrderItems(saleItems(sale).map((item) => ({ ...item, saved: true })));
   el.saleHeading.textContent = "Sửa đơn bán";
   el.saleDescription.textContent = "Các dòng đã lưu giữ nguyên đơn giá ban đầu.";
@@ -1417,24 +1451,26 @@ function saleTitle(items) {
 }
 
 function orderAmounts(items) {
-  const saved = state.sales.find((sale) => sale.id === editingSaleId);
-  const subtotal = sumOrderItems(items);
+  const saved = forActiveBranch(state.sales).find((sale) => sale.id === editingSaleId);
+  const unit = saleCurrencyInput.value;
+  const subtotal = roundOrderMoney(sumOrderItems(items), unit);
   let adjustment = saved?.orderAdjustment ?? 0;
   if (saved?.sapoOrderNumber && saved.orderAdjustment == null) {
     adjustment = saved.total - sumOrderItems(saleItems(saved));
   }
-  const base = Math.max(0, subtotal + adjustment);
+  const base = Math.max(0, roundOrderMoney(subtotal + adjustment, unit));
   const type = el.saleDiscountType.value;
   const value = el.saleDiscountValue.valueAsNumber;
   let error = "";
-  if (!Number.isFinite(value) || value < 0) error = "Nhập mức giảm giá từ 0 trở lên.";
+  if (!validOrderMoney(subtotal, unit) || !validOrderMoney(base, unit)) error = "Tổng tiền vượt phạm vi cho phép.";
+  else if (!Number.isFinite(value) || value < 0) error = "Nhập mức giảm giá từ 0 trở lên.";
   else if (type === "percent" && (value > 100 || Math.abs(value * 100 - Math.round(value * 100)) > 0.000001)) {
     error = "Phần trăm giảm phải từ 0 đến 100, tối đa 2 chữ số thập phân.";
-  } else if (type === "amount" && (!Number.isSafeInteger(value) || value > base)) {
-    error = "Số tiền giảm phải là số nguyên và không vượt số tiền đơn hàng.";
+  } else if (type === "amount" && (!validOrderMoney(value, unit) || value > base)) {
+    error = "Số tiền giảm không hợp lệ hoặc vượt số tiền đơn hàng.";
   }
-  const discount = error ? 0 : type === "percent" ? Math.round(base * value / 100) : value;
-  return { subtotal, adjustment, base, type, value, discount, total: base - discount, error };
+  const discount = error ? 0 : type === "percent" ? roundOrderMoney(base * value / 100, unit) : value;
+  return { subtotal, adjustment, base, type, value, discount, total: roundOrderMoney(base - discount, unit), error };
 }
 
 function sumOrderItems(items) {
@@ -1445,14 +1481,66 @@ function sumOrderQty(items) {
   return items.reduce((total, item) => total + item.qty, 0);
 }
 
-function sumRevenue(sales) {
-  return sales.reduce((total, sale) => total + Number(sale.total || 0), 0);
+function orderCurrency(sale) {
+  return sale.currency === "USD" ? "USD" : "VND";
 }
 
-function sumRevenueByPayment(sales, paymentMethod) {
-  return sales
-    .filter((sale) => (sale.paymentMethod || "cash") === paymentMethod)
-    .reduce((total, sale) => total + Number(sale.total || 0), 0);
+function roundOrderMoney(value, unit) {
+  const scale = unit === "USD" ? 100 : 1;
+  const scaled = value * scale;
+  return Math.round(scaled + Number.EPSILON * Math.abs(scaled)) / scale;
+}
+
+function validOrderMoney(value, unit) {
+  if (unit === "VND") return validPrice(value);
+  return Number.isFinite(value) && value >= 0 && value <= Number.MAX_SAFE_INTEGER / 100 &&
+    Math.abs(value - roundOrderMoney(value, unit)) < 0.0000001;
+}
+
+function sumRevenue(sales, unit = "VND") {
+  return sales.reduce((total, sale) => orderCurrency(sale) === unit
+    ? total + Number(sale.total || 0) : total, 0);
+}
+
+function formatRevenue(vnd, usd) {
+  return usd ? `${formatMoney(vnd)} · ${formatMoney(usd, "USD")}` : formatMoney(vnd);
+}
+
+function formatSalesRevenue(sales) {
+  return formatRevenue(sumRevenue(sales), sumRevenue(sales, "USD"));
+}
+
+function paymentRevenue(sales, method) {
+  return formatSalesRevenue(sales.filter((sale) => (sale.paymentMethod || "cash") === method));
+}
+
+function customerRevenue(sales) {
+  const groups = ["vietnamese", "international", "unclassified"];
+  const totals = Object.fromEntries(groups.map((group) => [group, { VND: 0, USD: 0 }]));
+  for (const sale of sales) {
+    const unit = orderCurrency(sale);
+    const scale = unit === "USD" ? 100 : 1;
+    const net = Math.round(Number(sale.total || 0) * scale);
+    const weights = { vietnamese: 0, international: 0, unclassified: 0 };
+    const represented = new Set();
+    for (const item of saleItems(sale)) {
+      const group = item.priceTier === "vietnamese" || item.priceTier === "international"
+        ? item.priceTier : "unclassified";
+      represented.add(group);
+      weights[group] += Math.max(0, item.price * item.qty);
+    }
+    const weight = groups.reduce((sum, group) => sum + weights[group], 0);
+    let allocated = 0;
+    let cumulative = 0;
+    for (const group of groups) {
+      cumulative += weights[group];
+      const share = weight ? Math.round(net * cumulative / weight)
+        : group === (represented.size === 1 ? [...represented][0] : "unclassified") ? net : allocated;
+      totals[group][unit] += (share - allocated) / scale;
+      allocated = share;
+    }
+  }
+  return totals;
 }
 
 function sumPurchases(purchases) {
@@ -1466,8 +1554,8 @@ function paymentMethodLabel(paymentMethod) {
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
-function formatMoney(value) {
-  return currency.format(value);
+function formatMoney(value, unit = "VND") {
+  return (unit === "USD" ? usdCurrency : currency).format(value);
 }
 
 function formatDateTime(value) {
