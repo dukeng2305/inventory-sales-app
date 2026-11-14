@@ -336,12 +336,14 @@ el.saleForm.addEventListener("submit", async (event) => {
     ? { ...editingSale, ...saleData, status: "paid" }
     : { id: crypto.randomUUID(), branchId: activeBranch, ...saleData, status: "paid" };
   try {
-    if (!await commitSaleStock(editingSale, nextSale)) return;
+    if (window.inventoryCloud?.isStaff()) {
+      await window.inventoryCloud.checkout(nextSale);
+    } else if (!await commitSaleStock(editingSale, nextSale)) return;
   } catch (error) {
     showSaleMessage(error.message);
     return;
   }
-  const unknownCount = items.filter((item) => !item.productId ||
+  const unknownCount = window.inventoryCloud?.isStaff() ? 0 : items.filter((item) => !item.productId ||
     !Number.isSafeInteger(state.products.find((product) =>
       product.id === item.productId && recordBranch(product) === activeBranch)?.stock)).length;
   resetSaleForm();
@@ -588,18 +590,30 @@ async function saveState(nextState) {
 
 window.inventorySharedSnapshot = () => state;
 window.inventoryRestoreLocal = () => window.inventoryApplyShared(loadState());
-window.inventoryApplyShared = (snapshot) => {
+window.inventorySetStaffMode = (enabled) => {
+  const changed = document.body.classList.contains("staff-mode") !== enabled;
+  document.body.classList.toggle("staff-mode", enabled);
+  document.querySelectorAll("[data-owner-only]").forEach((element) => {
+    element.classList.toggle("hidden", enabled);
+  });
+  if (changed && enabled) switchTab("sell");
+};
+window.inventoryApplyShared = (snapshot, preserveDraft = false) => {
   Object.assign(state, { products: readProducts(snapshot.products), sales: snapshot.sales, purchases: snapshot.purchases });
-  if (el.productPicker.open) el.productPicker.close();
-  resetSaleForm();
-  resetPurchaseForm();
-  closeProductForm();
+  if (!preserveDraft) {
+    if (el.productPicker.open) el.productPicker.close();
+    resetSaleForm();
+    resetPurchaseForm();
+    closeProductForm();
+  }
   render();
 };
 
 // ─── UI helpers ──────────────────────────────────────────────────────────────
 
 function switchTab(tabName) {
+  if (document.body.classList.contains("staff-mode") &&
+      !["sell", "history", "more"].includes(tabName)) tabName = "sell";
   const navTab = { sell: "history", purchase: "more" }[tabName] || tabName;
   document.querySelectorAll(".tab-button").forEach((item) => {
     const active = item.dataset.tab === navTab;
@@ -742,7 +756,7 @@ function renderPickerProducts() {
           <strong>${name}</strong>
           <span class="picker-product-price">${formatMoney(product.vietnamesePrice)}</span>
           ${product.sku ? `<small>${escapeHtml(product.sku)}</small>` : ""}
-          <small>Tồn kho: <span class="${product.stock != null && product.stock <= 0 ? "stock-low" : ""}">${product.stock == null ? "Chưa cập nhật" : product.stock.toLocaleString("vi-VN")}</span></small>
+          <small class="catalog-stock">Tồn kho: <span class="${product.stock != null && product.stock <= 0 ? "stock-low" : ""}">${product.stock == null ? "Chưa cập nhật" : product.stock.toLocaleString("vi-VN")}</span></small>
         </div>
         <div class="qty-stepper">
           ${qty ? `<button type="button" data-picker-product="${id}" data-change="-1" aria-label="Giảm ${escapeAttribute(product.name)}">−</button><output>${qty}</output>` : ""}
@@ -1176,7 +1190,7 @@ function renderHistory() {
           ${sale.discountAmount > 0 ? `<p class="item-meta">Giảm giá ${sale.discountType === "percent" ? escapeHtml(sale.discountValue) + "% · " : ""}${formatMoney(sale.discountAmount, orderCurrency(sale))}</p>` : ""}
         </div>
         <div class="item-actions">
-          ${sale.status === "cancelled"
+          ${window.inventoryCloud?.isStaff() ? (sale.status === "cancelled" ? '<span class="cancelled-label">Đã hủy</span>' : "") : sale.status === "cancelled"
             ? `<span class="cancelled-label">Đã hủy</span><button class="danger-button" type="button" data-delete-sale="${escapeAttribute(sale.id)}">Xóa</button>`
             : `<button class="small-button" type="button" data-edit-sale="${escapeAttribute(sale.id)}">Sửa</button>
                <button class="danger-button" type="button" data-cancel-sale="${escapeAttribute(sale.id)}">Hủy đơn</button>`}

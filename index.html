@@ -11,7 +11,7 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-    <link rel="stylesheet" href="styles.css?v=32" />
+    <link rel="stylesheet" href="styles.css?v=38" />
   </head>
   <body>
     <div class="app-shell">
@@ -86,8 +86,8 @@
         </section>
 
         <section class="tab-panel" id="more">
-          <div class="panel-heading"><h1>Thêm</h1><p>Quản lý nhập hàng và dữ liệu trên thiết bị.</p></div>
-          <div class="utility-list">
+          <div class="panel-heading"><h1>Thêm</h1><p data-owner-only>Quản lý nhập hàng và dữ liệu trên thiết bị.</p></div>
+          <div class="utility-list" data-owner-only>
             <button class="ghost-button" type="button" data-go="purchase">Nhập hàng</button>
             <button class="ghost-button" id="exportBtn" type="button">Xuất dữ liệu</button>
             <button class="ghost-button" id="importBtn" type="button">Nhập dữ liệu / tồn kho</button>
@@ -325,16 +325,15 @@
         <section class="tab-panel" id="history">
           <div class="panel-heading">
             <h1>Đơn hàng</h1>
-            <p>Các đơn đã lưu trên thiết bị này.</p>
           </div>
           <div class="list" id="saleHistory"></div>
         </section>
       </main>
       <nav class="tabs" aria-label="Điều hướng chính">
-        <button class="tab-button active" type="button" data-tab="overview" aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7v10H3z M9 20v-7h6v7"/></svg><span>Tổng quan</span></button>
+        <button class="tab-button active" type="button" data-tab="overview" data-owner-only aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7v10H3z M9 20v-7h6v7"/></svg><span>Tổng quan</span></button>
         <button class="tab-button" type="button" data-tab="history"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 9h6m-6 4h6m-6 4h4"/></svg><span>Đơn hàng</span></button>
-        <button class="tab-button" type="button" data-tab="products"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/></svg><span>Sản phẩm</span></button>
-        <button class="tab-button" type="button" data-tab="reports"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M7 16v-4m5 4V8m5 8V4"/></svg><span>Báo cáo</span></button>
+        <button class="tab-button" type="button" data-tab="products" data-owner-only><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/></svg><span>Sản phẩm</span></button>
+        <button class="tab-button" type="button" data-tab="reports" data-owner-only><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M7 16v-4m5 4V8m5 8V4"/></svg><span>Báo cáo</span></button>
         <button class="tab-button" type="button" data-tab="more"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg><span>Thêm</span></button>
       </nav>
     </div>
@@ -359,8 +358,8 @@
         <button class="primary-button" id="completePicker" type="button">Hoàn tất</button>
       </footer>
     </dialog>
-    <script src="app.js?v=36"></script>
+    <script src="app.js?v=38"></script>
     <script src="sync-config.js?v=33"></script>
-    <script src="sync.js?v=37"></script>
+    <script src="sync.js?v=38"></script>
   </body>
 </html>

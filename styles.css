@@ -929,3 +929,6 @@ body.picker-open { overflow: hidden; }
 
 .cancelled-sale { opacity: .7; border-left-color: #8390a4 !important; }
 .cancelled-label { color: var(--danger); font-weight: 700; align-self: center; }
+
+.staff-mode .catalog-stock { display: none; }
+.staff-mode .tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
