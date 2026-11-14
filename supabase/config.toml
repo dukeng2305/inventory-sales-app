@@ -1,0 +1,4 @@
+project_id = "inventory-sales-app"
+
+[functions.username-login]
+verify_jwt = false

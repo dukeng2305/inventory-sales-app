@@ -209,9 +209,11 @@
     if (busy) return;
     busy = true;
     try {
-      const login = await request("/auth/v1/token?grant_type=password", {
-        email: form.elements.email.value.trim(), password: form.elements.password.value,
-      }, "");
+      const identifier = form.elements.identifier.value.trim();
+      const password = form.elements.password.value;
+      const login = identifier.includes("@")
+        ? await request("/auth/v1/token?grant_type=password", { email: identifier, password }, "")
+        : await request("/functions/v1/username-login", { username: identifier.toLowerCase(), password }, "");
       staff = false;
       session = { ...login, expiresAt: Date.now() + login.expires_in * 1000 };
       revision = undefined;
