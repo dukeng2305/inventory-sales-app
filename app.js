@@ -301,7 +301,11 @@ el.saleForm.addEventListener("submit", async (event) => {
     return;
   }
   const total = amounts.total;
-  const editingSale = state.sales.find((sale) => sale.id === editingSaleId);
+  const editingSale = forActiveBranch(state.sales).find((sale) => sale.id === editingSaleId);
+  if (editingSaleId && !editingSale) {
+    showSaleMessage("Đơn đang sửa không còn trong chi nhánh này. Vui lòng mở lại đơn.");
+    return;
+  }
   const saleData = {
     items,
     productName: saleTitle(items),
@@ -1197,7 +1201,7 @@ function renderPurchaseHistory() {
 // ─── CRUD helpers ─────────────────────────────────────────────────────────────
 
 function editSale(id) {
-  const sale = state.sales.find((item) => item.id === id);
+  const sale = forActiveBranch(state.sales).find((item) => item.id === id);
   if (!sale || sale.status === "cancelled") return;
 
   editingSaleId = sale.id;
@@ -1228,11 +1232,14 @@ function saleStockQuantities(sale) {
 }
 
 async function commitSaleStock(previous, nextSale) {
+  const targetBranch = recordBranch(previous || nextSale);
+  if (nextSale && recordBranch(nextSale) !== targetBranch) {
+    throw new Error("Không thể chuyển đơn sang kho của chi nhánh khác.");
+  }
   // Older sales are already reflected in the imported/current inventory snapshot.
   const before = previous?.status === "cancelled" ? {}
     : previous?.stockQuantities ?? saleStockQuantities(previous);
   const after = saleStockQuantities(nextSale);
-  const targetBranch = recordBranch(nextSale || previous);
   const products = state.products.map((product) => {
     if (recordBranch(product) !== targetBranch || !Number.isSafeInteger(product.stock)) return product;
     const difference = (after[product.id] || 0) - (before[product.id] || 0);
@@ -1245,13 +1252,16 @@ async function commitSaleStock(previous, nextSale) {
   });
   const updated = nextSale ? { ...nextSale, stockQuantities: after } : null;
   const sales = previous
-    ? state.sales.flatMap((sale) => sale.id === previous.id ? updated ? [updated] : [] : [sale])
+    ? state.sales.flatMap((sale) => {
+      if (sale.id !== previous.id || recordBranch(sale) !== targetBranch) return [sale];
+      return updated ? [updated] : [];
+    })
     : [updated, ...state.sales];
   return saveState({ ...state, products, sales });
 }
 
 async function cancelSale(id) {
-  const sale = state.sales.find((item) => item.id === id);
+  const sale = forActiveBranch(state.sales).find((item) => item.id === id);
   if (!sale || sale.status === "cancelled") return;
   const quantities = sale.stockQuantities ?? saleStockQuantities(sale);
   const untracked = saleItems(sale).filter((item) => !quantities[item.productId]).length;
@@ -1268,7 +1278,7 @@ async function cancelSale(id) {
 }
 
 async function deleteSale(id) {
-  const sale = state.sales.find((item) => item.id === id);
+  const sale = forActiveBranch(state.sales).find((item) => item.id === id);
   if (!sale) return;
 
   const ok = confirm(`Xóa đơn "${saleTitle(saleItems(sale))}"?`);
